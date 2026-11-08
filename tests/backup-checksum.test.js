@@ -16,7 +16,7 @@ test('snapshot checksum detects tampering even when SQLite remains valid',async(
   db.exec("CREATE TABLE notes(value TEXT); INSERT INTO notes VALUES('original')");
   db.close();
   const path=await backupDatabase({root});
-  assert.match(readFileSync(path+'.sha256','utf8'),/^[0-9a-f]{64}\s*$/);
+  assert.match(readFileSync(path+'.sha256','utf8'),/^[0-9a-f]{64}\n$/);
   assert.equal(inspectBackups({root})[0].checksum.valid,true);
   assert.equal(checkRestoreCandidate({root,filename:basename(path)}).ready,true);
   const modified=new DatabaseSync(path);
@@ -35,6 +35,19 @@ test('malformed checksum sidecars are rejected',async()=>{
   db.exec('CREATE TABLE notes(value TEXT)');db.close();
   const path=await backupDatabase({root});
   writeFileSync(path+'.sha256','not-a-digest');
+  assert.equal(inspectBackups({root})[0].valid,false);
+  assert.equal(checkRestoreCandidate({root,filename:basename(path)}).reason,'checksum_mismatch');
+ }finally{rmSync(root,{recursive:true,force:true});}
+});
+
+test('oversized checksum sidecars are rejected before reading',async()=>{
+ const root=mkdtempSync(join(tmpdir(),'tsuka-hash-large-'));
+ try{
+  mkdirSync(join(root,'data'));
+  const db=new DatabaseSync(join(root,'data','tsukamiyora.sqlite'));
+  db.exec('CREATE TABLE notes(value TEXT)');db.close();
+  const path=await backupDatabase({root});
+  writeFileSync(path+'.sha256','f'.repeat(1024*1024));
   assert.equal(inspectBackups({root})[0].valid,false);
   assert.equal(checkRestoreCandidate({root,filename:basename(path)}).reason,'checksum_mismatch');
  }finally{rmSync(root,{recursive:true,force:true});}
