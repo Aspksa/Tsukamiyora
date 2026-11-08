@@ -3,6 +3,7 @@ import websocket from '@fastify/websocket';
 import { openStorage } from './storage.js';
 import { KnowledgeIndex } from './rag.js';
 import { RagPipeline } from './rag-pipeline.js';
+import { RagIntelligence } from './rag-intelligence.js';
 import { ConversationMemory } from './rag-memory.js';
 import { ChatContext } from './chat-context.js';
 import { CloudRu } from './cloudru.js';
@@ -15,6 +16,7 @@ await app.register(websocket);
 const db=openStorage();
 const rag=new KnowledgeIndex(db);
 const ragPipeline=new RagPipeline(rag);
+const ragIntelligence=new RagIntelligence(db);
 const memory=new ConversationMemory(db);
 const chatContext=new ChatContext(db);
 const cloud=new CloudRu();
@@ -75,6 +77,12 @@ app.get('/api/memory/:conversationId',async(req,reply)=>{
  try{return {messages:memory.history(req.params.conversationId,{limit:Number(req.query?.limit??50)})};}
  catch(error){reply.code(400);return {error:String(error.message)};}
 });
+app.post('/api/rag/semantic/index',async(req,reply)=>{try{return ragIntelligence.sync({limit:Number(req.body?.limit??500)});}catch(e){reply.code(400);return {error:e.message};}});
+app.get('/api/rag/semantic/search',async(req,reply)=>{try{return {results:ragIntelligence.semantic(req.query?.q??'',{limit:Number(req.query?.limit??5)})};}catch(e){reply.code(400);return {error:e.message};}});
+app.get('/api/rag/graph',async(req,reply)=>{try{return {relations:ragIntelligence.graph(req.query?.subject??'')};}catch(e){reply.code(400);return {error:e.message};}});
+app.post('/api/rag/temporal/facts',async(req,reply)=>{try{return ragIntelligence.recordFact(req.body??{});}catch(e){reply.code(400);return {error:e.message};}});
+app.post('/api/rag/feedback',async(req,reply)=>{try{return ragIntelligence.rate(req.body??{});}catch(e){reply.code(400);return {error:e.message};}});
+app.get('/api/rag/intelligence/status',async()=>ragIntelligence.metrics());
 app.get('/api/rag/status',async()=>({
  retrieval:ragPipeline.metrics(),
  sources:db.prepare('SELECT COUNT(*) AS count FROM rag_sources').get().count,
