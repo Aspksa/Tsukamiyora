@@ -22,6 +22,8 @@ test('cloud indexing requires per-file consent and revocation removes vectors',a
   assert.equal((await neural.sync()).indexed,1);
   assert.equal(calls,1);
   permissions.set({sourceId:'file:manual',allowed:false});
+  assert.equal(neural.metrics().stored,0);
+  assert.equal(db.prepare('SELECT COUNT(*) n FROM rag_embedding_cache').get().n,0);
   assert.equal((await neural.sync()).indexed,0);
   assert.equal(neural.metrics().stored,0);
   assert.deepEqual(await neural.search('двигателя'),[]);
