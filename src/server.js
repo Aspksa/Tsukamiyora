@@ -36,6 +36,7 @@ import { createRagAgentCoordinator } from './rag-agent-coordinator.js';
 import { createAgentAcademy } from './agent-academy.js';
 import { availableAgentExams, gradeAgentExam } from './agent-exams.js';
 import { availableAgentPractice, runAgentPractice } from './agent-practice.js';
+import { createAgentTrainingScheduler } from './agent-training-scheduler.js';
 import { diagnoseAgents } from './rag-agent-diagnostics.js';
 import { assessCloudBudget } from './cloud-budget.js';
 import { createRagQualityMonitor } from './rag-quality-monitor.js';
@@ -68,6 +69,7 @@ const ragGuardian=new RagKnowledgeGuardian(db);
 const agentExperience=new RagAgentExperience(db);
 const agentCoordinator=createRagAgentCoordinator(db);
 const agentAcademy=createAgentAcademy(db,agentCoordinator.roles);
+const agentTrainingScheduler=createAgentTrainingScheduler(agentAcademy,{log});
 const memory=new ConversationMemory(db);
 const chatContext=new ChatContext(db);
 const cloud=new CloudRu();
@@ -182,6 +184,8 @@ app.post('/api/rag/agents/experience',async(req,reply)=>{try{const result=agentE
 app.post('/api/rag/agents/experience/review',async(req,reply)=>{try{return agentExperience.review(req.body??{});}catch(e){reply.code(400);return {error:e.message};}});
 app.get('/api/rag/agents/coordinator/diagnostics',async()=>diagnoseAgents({activity:agentCoordinator.activity({limit:100}),queue:agentCoordinator.status().queue,cloud:cloud.usageMetrics()}));
 app.get('/api/rag/agents/coordinator/activity',async(req,reply)=>{try{return {items:agentCoordinator.activity({limit:Number(req.query?.limit??30)})};}catch(e){reply.code(400);return {error:e.message};}});
+app.get('/api/rag/agents/academy/scheduler',async()=>agentTrainingScheduler.status());
+app.post('/api/rag/agents/academy/scheduler/run',async()=>agentTrainingScheduler.run());
 app.get('/api/rag/agents/academy/practice',async()=>({tasks:availableAgentPractice(),offline:true}));
 app.post('/api/rag/agents/academy/practice/:role',async(req,reply)=>{try{const result=runAgentPractice(req.params.role);const saved=agentAcademy.record(result);return {...saved,taskKey:result.taskKey,passed:result.passed,offline:true};}catch(e){reply.code(400);return {error:e.message};}});
 app.get('/api/rag/agents/academy/exams',async()=>({roles:availableAgentExams(),grading:'server-side deterministic',independent:false}));
@@ -280,6 +284,6 @@ app.get('/ws',{websocket:true},(socket)=>{
 const port=Number(process.env.TSUKAMIYORA_PORT||4177);
 if(!Number.isInteger(port)||port<1||port>65535)throw Error('Invalid port');
 let stopping=false;
-async function stop(){if(stopping)return;stopping=true;try{if(agentAuditTimer)clearInterval(agentAuditTimer);autoIndex.stop();guardianScheduler.stop();agentCoordinator.stop();tasks.close();await app.close();db.close();}catch(e){log(String(e));process.exitCode=1;}}
+async function stop(){if(stopping)return;stopping=true;try{if(agentAuditTimer)clearInterval(agentAuditTimer);autoIndex.stop();guardianScheduler.stop();agentTrainingScheduler.stop();agentCoordinator.stop();tasks.close();await app.close();db.close();}catch(e){log(String(e));process.exitCode=1;}}
 process.on('SIGINT',stop);process.on('SIGTERM',stop);
-try{await app.listen({host:'127.0.0.1',port});log('Listening on '+port);autoIndex.start();guardianScheduler.start();agentAuditTimer=setInterval(()=>{try{agentCoordinator.enqueueAudit();}catch(error){log({event:'rag:agent-audit-error',error:String(error)});}},30*60*1000);agentAuditTimer.unref();agentCoordinator.enqueueAudit();}catch(e){log(String(e));console.error(e);process.exitCode=1;await stop();}
+try{await app.listen({host:'127.0.0.1',port});log('Listening on '+port);autoIndex.start();guardianScheduler.start();agentTrainingScheduler.start();agentTrainingScheduler.run();agentAuditTimer=setInterval(()=>{try{agentCoordinator.enqueueAudit();}catch(error){log({event:'rag:agent-audit-error',error:String(error)});}},30*60*1000);agentAuditTimer.unref();agentCoordinator.enqueueAudit();}catch(e){log(String(e));console.error(e);process.exitCode=1;await stop();}
