@@ -11,7 +11,7 @@ export function sha256File(path){
 export function verifySnapshotChecksum(path){
  const sidecar=path+'.sha256';
  if(!existsSync(sidecar))return {present:false,valid:null};
- if(!lstatSync(sidecar).isFile())return {present:true,valid:false};
+ if(!lstatSync(sidecar).isFile()||lstatSync(sidecar).size>128)return {present:true,valid:false};
  const expected=readFileSync(sidecar,'utf8').trim();
  if(!/^[0-9a-f]{64}$/.test(expected))return {present:true,valid:false};
  const actual=sha256File(path);
