@@ -51,3 +51,7 @@ Agent activity is now recorded in the local SQLite `rag_agent_activity` table an
 ## Cloud.ru usage instrumentation
 
 `GET /api/cloud/usage` and `GET /api/metrics` expose in-memory counts for requests, successful responses, failed responses, and token usage explicitly reported by non-streaming chat completions. The dashboard displays these counters without API keys or chat content. Counters reset on restart; streaming token usage is not yet captured, and prices/cost savings are **not** inferred. This is instrumentation, not a verified reduction in paid requests.
+
+## Durable Cloud.ru usage
+
+Aggregate counters now persist in `data/cloudru-usage.json` via temporary-file replacement. The JSON contains only numeric counts and accumulated successful-request duration, never keys or message content. The `session` field exposes counters since the current process started. A `persistenceError` indicator reports read/write problems. These totals are **not** billing-grade measurements: streaming usage may be unavailable, failures before response completion may lack latency, and concurrent independent processes are not supported for this file.
