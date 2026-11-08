@@ -1,5 +1,5 @@
 import { backup, DatabaseSync } from 'node:sqlite';
-import { existsSync, mkdirSync, readdirSync, unlinkSync, renameSync } from 'node:fs';
+import { existsSync, mkdirSync, readdirSync, unlinkSync, renameSync, lstatSync } from 'node:fs';
 import { join } from 'node:path';
 import { randomUUID } from 'node:crypto';
 export async function backupDatabase({root=process.cwd(),retention=10}={}){
@@ -21,7 +21,10 @@ export async function backupDatabase({root=process.cwd(),retention=10}={}){
  } catch(e) { if(existsSync(tmp))unlinkSync(tmp); throw e; }
  const files=readdirSync(folder).filter(n=>/^tsukamiyora-\d{4}-\d{2}-\d{2}T\d{2}-\d{2}-\d{2}-\d{3}Z(?:-[0-9a-f]{8})?\.sqlite$/.test(n)).sort().reverse();
  // Retain only snapshots produced by this application; do not delete unrelated files.
- for(const old of files.slice(retention)) unlinkSync(join(folder,old));
+ for(const old of files.slice(retention)){
+  const path=join(folder,old);
+  if(lstatSync(path).isFile())unlinkSync(path);
+ }
  return target;
 }
 if(process.argv.includes('--run-backup')){
