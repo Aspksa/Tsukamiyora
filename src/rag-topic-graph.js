@@ -1,5 +1,5 @@
 // Evidence-grounded thematic graph: only explicit key-value facts, no inferred claims.
-const terms=s=>[...new Set((String(s).toLocaleLowerCase('ru').match(/[\p{L}\p{N}]{3,}/gu)||[]))];
+const terms=s=>(String(s).toLocaleLowerCase('ru').match(/[\p{L}\p{N}]{3,}/gu)||[]);
 export class RagTopicGraph {
  constructor(db){
   this.db=db;
@@ -20,7 +20,7 @@ export class RagTopicGraph {
    for(const row of rows){
     const frequencies=new Map();
     for(const token of terms(row.body))frequencies.set(token,(frequencies.get(token)||0)+1);
-    for(const topic of [...frequencies.keys()].sort().slice(0,30)){
+    for(const topic of [...frequencies.entries()].sort((a,b)=>b[1]-a[1]||a[0].localeCompare(b[0])).slice(0,30).map(([topic])=>topic)){
      count+=insert.run(sourceId,row.id,topic).changes;
     }
    }
