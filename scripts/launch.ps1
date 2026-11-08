@@ -1,60 +1,93 @@
 $ErrorActionPreference = 'Stop'
-$root = [System.IO.Path]::GetFullPath($env:TSUKA_ROOT)
+$root = [IO.Path]::GetFullPath($env:TSUKA_ROOT)
 Set-Location -LiteralPath $root
 $logs = Join-Path $root 'logs'
 New-Item -ItemType Directory -Force -Path $logs | Out-Null
 $log = Join-Path $logs 'launcher.log'
-function Write-Log([string]$message) {
+function Log([string]$message) {
   $line = "[$(Get-Date -Format o)] $message"
   Write-Host $line
   Add-Content -LiteralPath $log -Value $line -Encoding UTF8
 }
-function Test-Health([int]$port) {
+function Healthy([int]$port) {
   try {
-    $r = Invoke-RestMethod -Uri "http://127.0.0.1:$port/health" -TimeoutSec 2 -ErrorAction Stop
+    $r = Invoke-RestMethod -Uri "http://127.0.0.1:$port/health" -TimeoutSec 2
     return ($r.service -eq 'tsukamiyora-core' -and $r.status -eq 'ok')
   } catch { return $false }
 }
+function Find-Node {
+  $portable = Join-Path $root '.runtime\node\node.exe'
+  if (Test-Path -LiteralPath $portable) { return $portable }
+  $cmd = Get-Command node.exe -ErrorAction SilentlyContinue
+  if ($cmd) {
+    $v = & $cmd.Source -p 'process.versions.node'
+    if ($LASTEXITCODE -eq 0 -and [version]$v -ge [version]'22.13.0') { return $cmd.Source }
+  }
+  Log 'Installing portable Node.js from official nodejs.org distribution'
+  $index = Invoke-RestMethod -Uri 'https://nodejs.org/dist/index.json' -TimeoutSec 25
+  $release = $index | Where-Object { $_.lts -and $_.lts -ne $false -and ([version]$_.version.TrimStart('v') -ge [version]'22.13.0') -and ($_.files -contains 'win-x64-zip') } | Select-Object -First 1
+  if (-not $release) { throw 'No compatible Windows x64 LTS Node.js release found' }
+  $version = $release.version
+  $filename = "node-$version-win-x64.zip"
+  $base = "https://nodejs.org/dist/$version"
+  $temp = Join-Path $root '.runtime\download'
+  New-Item -ItemType Directory -Force -Path $temp | Out-Null
+  $zip = Join-Path $temp $filename
+  Invoke-WebRequest -Uri "$base/$filename" -OutFile $zip -TimeoutSec 180 -UseBasicParsing
+  $sums = (Invoke-WebRequest -Uri "$base/SHASUMS256.txt" -TimeoutSec 25 -UseBasicParsing).Content
+  $entry = ($sums -split "`n" | Where-Object { $_ -match ("^([0-9a-fA-F]{64})\s+" + [regex]::Escape($filename) + "$") } | Select-Object -First 1)
+  if (-not $entry) { throw 'SHA256 entry not found for downloaded Node.js' }
+  $expected = ($entry -split '\s+')[0].ToLowerInvariant()
+  $actual = (Get-FileHash -LiteralPath $zip -Algorithm SHA256).Hash.ToLowerInvariant()
+  if ($expected -ne $actual) { throw 'Node.js archive SHA256 mismatch' }
+  $stage = Join-Path $temp 'extract'
+  if (Test-Path -LiteralPath $stage) { Remove-Item -LiteralPath $stage -Recurse -Force }
+  Expand-Archive -LiteralPath $zip -DestinationPath $stage -Force
+  $source = Join-Path $stage "node-$version-win-x64"
+  $target = Join-Path $root '.runtime\node'
+  if (Test-Path -LiteralPath $target) { Remove-Item -LiteralPath $target -Recurse -Force }
+  Move-Item -LiteralPath $source -Destination $target
+  return (Join-Path $target 'node.exe')
+}
 try {
+  $node = Find-Node
+  $version = (& $node -p 'process.versions.node').Trim()
+  if ($LASTEXITCODE -ne 0 -or [version]$version -lt [version]'22.13.0') { throw "Node.js 22.13+ required, found $version" }
   $port = 4177
   if ($env:TSUKAMIYORA_PORT) {
     $port = [int]$env:TSUKAMIYORA_PORT
+    if ($port -lt 1 -or $port -gt 65535) { throw 'Invalid TSUKAMIYORA_PORT' }
   }
-  if ($port -lt 1 -or $port -gt 65535) { throw 'Invalid TSUKAMIYORA_PORT' }
-  $node = Join-Path $root '.runtime\node\node.exe'
-  if (-not (Test-Path -LiteralPath $node)) {
-    $cmd = Get-Command node.exe -ErrorAction SilentlyContinue
-    if ($cmd) { $node = $cmd.Source }
-    else { throw 'Node.js missing. Install Node.js 22.13+ or place node.exe in .runtime\node\' }
-  }
-  $version = & $node -p 'process.versions.node'
-  if ($LASTEXITCODE -ne 0) { throw 'Unable to run Node.js' }
-  $parts = $version.Trim().Split('.')
-  if ([int]$parts[0] -lt 22 -or ([int]$parts[0] -eq 22 -and [int]$parts[1] -lt 13)) { throw "Node.js 22.13+ required; found $version" }
-  Write-Log "Node.js $version; root=$root; port=$port"
-  if (Test-Health $port) {
-    Write-Log 'Existing Tsukamiyora server detected. Opening browser.'
+  $explicit = [bool]$env:TSUKAMIYORA_PORT
+  if (Healthy $port) {
+    Log "Existing server healthy on port $port"
     Start-Process "http://127.0.0.1:$port/"
     exit 0
   }
-  $listener = Get-NetTCPConnection -LocalPort $port -State Listen -ErrorAction SilentlyContinue
-  if ($listener) { throw "Port $port is occupied by another service. Set TSUKAMIYORA_PORT to a free port." }
+  $used = Get-NetTCPConnection -State Listen -ErrorAction SilentlyContinue | Select-Object -ExpandProperty LocalPort
+  if ($port -in $used) {
+    if ($explicit) { throw "Requested port $port is occupied" }
+    $free = 4178..4277 | Where-Object { $_ -notin $used } | Select-Object -First 1
+    if (-not $free) { throw 'No free port in range 4177-4277' }
+    $port = $free
+  }
   $env:TSUKAMIYORA_PORT = [string]$port
   $server = Join-Path $root 'src\server.js'
   if (-not (Test-Path -LiteralPath $server)) { throw 'Missing src\server.js' }
+  Log "Starting Node.js $version, port $port"
   $proc = Start-Process -FilePath $node -ArgumentList @($server) -WorkingDirectory $root -PassThru -WindowStyle Hidden -RedirectStandardOutput (Join-Path $logs 'server-stdout.log') -RedirectStandardError (Join-Path $logs 'server-stderr.log')
-  Write-Log "Started server PID=$($proc.Id)"
+  Log "Server PID=$($proc.Id)"
   $ready = $false
-  for ($i = 0; $i -lt 30; $i++) {
+  for ($i=0; $i -lt 30; $i++) {
     Start-Sleep -Milliseconds 500
-    if (Test-Health $port) { $ready = $true; break }
+    if (Healthy $port) { $ready = $true; break }
     if ($proc.HasExited) { break }
   }
-  if (-not $ready) { throw 'Server did not become healthy within 15 seconds. Check logs\server-stderr.log' }
-  Write-Log 'Health check passed. Opening browser.'
+  if (-not $ready) { throw 'Server failed health check; inspect logs/server-stderr.log' }
+  Log 'Health check passed'
   Start-Process "http://127.0.0.1:$port/"
   exit 0
 } catch {
-  Write-Log "ERROR: $($_.Exception.Message)"
+  Log "ERROR: $($_.Exception.Message)"
   exit 1
 }
