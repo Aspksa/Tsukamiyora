@@ -31,3 +31,16 @@ test('agent experience rejects private chats and duplicate review',()=>{
   assert.deepEqual(experience.share({taskKey:'task'}),[]);
  }finally{db.close();}
 });
+
+test('approved agent lessons expire when their source changes',()=>{
+ const db=new DatabaseSync(':memory:');
+ try{
+  const index=new KnowledgeIndex(db),experience=new RagAgentExperience(db);
+  index.ingest({id:'file:guide',title:'Guide',text:'Original verified procedure'});
+  const item=experience.propose({agentId:'agent',taskKey:'procedure',lesson:'Use original procedure',sourceId:'file:guide'});
+  experience.review({id:item.id,approved:true});
+  assert.equal(experience.share({taskKey:'procedure'}).length,1);
+  index.ingest({id:'file:guide',title:'Guide',text:'Revised procedure, old method obsolete'});
+  assert.equal(experience.share({taskKey:'procedure'}).length,0);
+ }finally{db.close();}
+});
