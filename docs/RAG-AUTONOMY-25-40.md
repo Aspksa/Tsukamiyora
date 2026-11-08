@@ -55,3 +55,7 @@ Agent activity is now recorded in the local SQLite `rag_agent_activity` table an
 ## Durable Cloud.ru usage
 
 Aggregate counters now persist in `data/cloudru-usage.json` via temporary-file replacement. The JSON contains only numeric counts and accumulated successful-request duration, never keys or message content. The `session` field exposes counters since the current process started. A `persistenceError` indicator reports read/write problems. These totals are **not** billing-grade measurements: streaming usage may be unavailable, failures before response completion may lack latency, and concurrent independent processes are not supported for this file.
+
+## Read-only operational diagnostics
+
+`GET /api/rag/agents/coordinator/diagnostics` evaluates the latest 100 local agent events, the bounded queue state and current-session Cloud.ru usage. Default alerts: at least 3 failed agent events, more than 20 pending jobs, at least 5 Cloud.ru failures, or average successful Cloud.ru request latency over 15 seconds. These are heuristic thresholds, not a verified SLA. No knowledge changes, automatic tuning or remote requests are triggered by diagnostics. Retrieval-quality regression monitoring and budget enforcement remain future work.
