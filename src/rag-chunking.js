@@ -2,7 +2,7 @@
 export function chunkDocument(text,{chunkSize=1000}={}){
  if(typeof text!=='string'||!Number.isInteger(chunkSize)||chunkSize<200||chunkSize>4000)throw Error('Invalid chunk input');
  if(!text)return [];
- const blocks=text.split(/(?<=\n)\s*\n/).flatMap(block=>{
+ const blocks=text.split(/(?<=\n\n)/).flatMap(block=>{
   // Prefer sentence/line boundaries when a paragraph is too large.
   if(block.length<=chunkSize)return [block];
   const lines=block.split(/(?<=\n)/);
