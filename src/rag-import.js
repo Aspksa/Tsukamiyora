@@ -25,9 +25,18 @@ export function indexDirectory(db,folder,{maxFiles=2000,maxBytes=1024*1024}={}){
     const actual=realpathSync(path);if(!actual.startsWith(root+sep)){skipped++;continue;}
     const rel=relative(root,path).replaceAll('\\','/');
     const id='file:'+createHash('sha256').update(root+'\0'+rel).digest('hex');
-    const result=rag.ingest({id,title:rel,text:readFileSync(path,'utf8')});
-    seen.add(id);
-    if(result.changed){topics.rebuild({sourceId:id});relations.extract({sourceId:id});changed++;}
+    const text=readFileSync(path,'utf8');
+    db.exec('SAVEPOINT rag_file_refresh');
+    try{
+     const result=rag.ingest({id,title:rel,text});
+     if(result.changed){topics.rebuild({sourceId:id});relations.extract({sourceId:id});changed++;}
+     db.exec('RELEASE SAVEPOINT rag_file_refresh');
+     seen.add(id);
+    }catch(error){
+     db.exec('ROLLBACK TO SAVEPOINT rag_file_refresh');
+     db.exec('RELEASE SAVEPOINT rag_file_refresh');
+     throw error;
+    }
    }catch{skipped++;}
   }
  }
