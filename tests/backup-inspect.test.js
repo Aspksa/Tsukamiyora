@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {DatabaseSync} from 'node:sqlite';
-import {mkdtempSync,mkdirSync,writeFileSync,rmSync} from 'node:fs';
+import {mkdtempSync,mkdirSync,writeFileSync,rmSync,symlinkSync} from 'node:fs';
 import {join} from 'node:path';
 import {tmpdir} from 'node:os';
 import {inspectBackups} from '../src/backup-inspect.js';
@@ -23,4 +23,20 @@ test('backup inventory validates snapshots and identifies damaged copies',()=>{
   assert.equal(result[2].valid,true);
   assert.throws(()=>inspectBackups({root,limit:101}),/Invalid backup inspection options/);
  }finally{rmSync(root,{recursive:true,force:true});}
+});
+
+test('backup inventory rejects a snapshot symlink escaping its directory',()=>{
+ const root=mkdtempSync(join(tmpdir(),'tsuka-backup-link-'));
+ const external=mkdtempSync(join(tmpdir(),'tsuka-backup-external-'));
+ try{
+  const folder=join(root,'data','backups');mkdirSync(folder,{recursive:true});
+  const outside=join(external,'outside.sqlite');
+  const db=new DatabaseSync(outside);db.exec('CREATE TABLE secrets(value TEXT)');db.close();
+  const filename='tsukamiyora-2026-11-08T04-00-00-000Z.sqlite';
+  symlinkSync(outside,join(folder,filename),'file');
+  const result=inspectBackups({root});
+  assert.equal(result.length,1);
+  assert.equal(result[0].valid,false);
+  assert.equal(result[0].error,'outside_backup_folder');
+ }finally{rmSync(root,{recursive:true,force:true});rmSync(external,{recursive:true,force:true});}
 });
