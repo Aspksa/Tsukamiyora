@@ -16,7 +16,7 @@ export function createRagAgentCoordinator(db,{log=()=>{}}={}){
    .run(role,action,outcome,count,Math.max(0,Math.round(durationMs)));
  };
  const queue=createRagWorkQueue({capacity:32,log});
- const roles=Object.freeze(['researcher','critic','librarian','architect','consolidator','auditor','optimizer','mentor']);
+ const roles=Object.freeze(["researcher","critic","librarian","architect","consolidator","auditor","optimizer","mentor","memory_engineer","document_analyst","ocr_specialist","rag_retriever","rag_reranker","rag_evaluator","index_engineer","system_architect","developer","tester","diagnostician","windows_engineer","security_engineer","release_engineer","dispatcher","scheduler","cloud_economist","quality_controller","performance_analyst","skills_teacher","experimenter","evolution_engineer"]);
  let proposed=0,rejected=0;
  const submitLesson=({role,taskKey,lesson,sourceId}={})=>{
   if(!roles.includes(role))throw Error('Unknown RAG agent role');
