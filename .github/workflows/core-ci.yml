@@ -14,8 +14,30 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
+      - run: npm install --no-audit --no-fund
       - run: node --test
       - run: node scripts/diagnose.js
+      - name: API integration smoke test
+        shell: pwsh
+        run: |
+          $p = Start-Process node -ArgumentList 'src/server.js' -PassThru -WorkingDirectory (Get-Location).Path -NoNewWindow
+          try {
+            $ready = $false
+            for ($i=0; $i -lt 30; $i++) {
+              Start-Sleep -Milliseconds 500
+              try { $health = Invoke-RestMethod 'http://127.0.0.1:4177/health' -TimeoutSec 1; if ($health.status -eq 'ok') { $ready=$true; break } } catch {}
+            }
+            if (-not $ready) { throw 'Server health timeout' }
+            $job = Invoke-RestMethod 'http://127.0.0.1:4177/api/tasks' -Method Post -ContentType 'application/json' -Body '{"kind":"sum","payload":[2,3,5]}'
+            $done = $false
+            for ($i=0; $i -lt 30; $i++) {
+              Start-Sleep -Milliseconds 200
+              $result = Invoke-RestMethod "http://127.0.0.1:4177/api/tasks/$($job.id)"
+              if ($result.status -eq 'done') { if ($result.result -ne 10) { throw 'Incorrect task result' }; $done=$true; break }
+            }
+            if (-not $done) { throw 'Worker timeout' }
+          } finally { Stop-Process -Id $p.Id -Force -ErrorAction SilentlyContinue }
+
       - name: Windows BAT launcher smoke test
         if: runner.os == 'Windows'
         shell: pwsh
