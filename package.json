@@ -1,6 +1,6 @@
 {
   "name": "tsukamiyora-core",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "private": true,
   "type": "module",
   "engines": {
@@ -10,7 +10,9 @@
     "start": "node src/supervisor.js",
     "test": "node --test",
     "diagnose": "node scripts/diagnose.js",
-    "backup": "node src/backup.js --run-backup"
+    "backup": "node src/backup.js --run-backup",
+    "verify": "node scripts/verify.js",
+    "test:core": "node --test tests/*.test.js"
   },
   "dependencies": {
     "fastify": "^5.0.0",
