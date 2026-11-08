@@ -58,6 +58,7 @@ test('guardian discovers consolidation candidates without changing source eviden
 test('guardian persists bounded health history without document text',()=>{
  const db=new DatabaseSync(':memory:');
  try{
+  new KnowledgeIndex(db);
   const scheduler=createGuardianScheduler(db);
   scheduler.run();
   const rows=scheduler.history({limit:5});
