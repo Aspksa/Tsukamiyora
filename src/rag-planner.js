@@ -1,8 +1,8 @@
 // A bounded local planner: no model calls, no remote search, no unapproved writes.
 const patterns=[
- {test:/\b(почему|как|why|how)\b/iu,kind:'explanation'},
- {test:/\b(сравни|разница|compare|difference)\b/iu,kind:'comparison'},
- {test:/\b(когда|история|изменил|when|history|changed)\b/iu,kind:'temporal'}
+ {test:/(?:^|[^\p{L}])(почему|как|why|how)(?=$|[^\p{L}])/iu,kind:'explanation'},
+ {test:/(?:^|[^\p{L}])(сравни|разница|compare|difference)(?=$|[^\p{L}])/iu,kind:'comparison'},
+ {test:/(?:^|[^\p{L}])(когда|история|изменил|when|history|changed)(?=$|[^\p{L}])/iu,kind:'temporal'}
 ];
 export function planRag(query,{maxSteps=4}={}){
  if(typeof query!=='string'||!query.trim()||query.length>1000||!Number.isInteger(maxSteps)||maxSteps<1||maxSteps>6)throw Error('Invalid RAG plan');
