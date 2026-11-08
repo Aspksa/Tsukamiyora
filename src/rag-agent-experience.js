@@ -15,6 +15,12 @@ export class RagAgentExperience {
   // remain withheld until re-proposed and reviewed against current evidence.
   if(!db.prepare("PRAGMA table_info(rag_agent_experience)").all().some(c=>c.name==='source_body_hash'))
    db.exec('ALTER TABLE rag_agent_experience ADD COLUMN source_body_hash TEXT');
+  db.exec(`CREATE TABLE IF NOT EXISTS rag_agent_review_log(
+   id INTEGER PRIMARY KEY AUTOINCREMENT,
+   experience_id INTEGER NOT NULL,
+   decision TEXT NOT NULL CHECK(decision IN ('approved','rejected')),
+   reviewed_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+  );`);
  }
  propose({agentId,taskKey,lesson,sourceId}={}){
   if(![agentId,taskKey,lesson,sourceId].every(x=>typeof x==='string'&&x.trim())||
@@ -28,12 +34,23 @@ export class RagAgentExperience {
  review({id,approved}={}){
   if(!Number.isSafeInteger(id)||id<1||typeof approved!=='boolean')throw Error('Invalid experience review');
   // A review must not approve an outdated proposal after its evidence changed.
+  this.db.exec('SAVEPOINT rag_agent_review');
+  try{
   const result=this.db.prepare(`UPDATE rag_agent_experience SET status=?,reviewed_at=CURRENT_TIMESTAMP
    WHERE id=? AND status='pending' AND (?=0 OR EXISTS(
     SELECT 1 FROM rag_sources s WHERE s.id=rag_agent_experience.source_id
      AND substr(s.id,1,5)='file:' AND s.body_hash=rag_agent_experience.source_body_hash
    ))`).run(approved?'approved':'rejected',id,approved?1:0);
+  if(result.changes===1){
+   this.db.prepare('INSERT INTO rag_agent_review_log(experience_id,decision) VALUES(?,?)').run(id,approved?'approved':'rejected');
+  }
+  this.db.exec('RELEASE SAVEPOINT rag_agent_review');
   return {updated:result.changes===1};
+  }catch(error){this.db.exec('ROLLBACK TO SAVEPOINT rag_agent_review');this.db.exec('RELEASE SAVEPOINT rag_agent_review');throw error;}
+ }
+ reviewHistory({limit=30}={}){
+  if(!Number.isInteger(limit)||limit<1||limit>100)throw Error('Invalid review history limit');
+  return this.db.prepare('SELECT experience_id,decision,reviewed_at FROM rag_agent_review_log ORDER BY id DESC LIMIT ?').all(limit);
  }
  pending({limit=30}={}){
   if(!Number.isInteger(limit)||limit<1||limit>100)throw Error('Invalid pending limit');
