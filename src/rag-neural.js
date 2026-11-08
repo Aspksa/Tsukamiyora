@@ -9,7 +9,7 @@ const cosine=(a,b)=>{
 };
 export class NeuralRag {
  constructor(db,cloud,{model}={}){
-  this.db=db;this.permissions=new RagPermissions(db);this.embeddings=new CloudEmbeddings(cloud,{model});
+  this.db=db;this.permissions=new RagPermissions(db);this.embeddings=new CloudEmbeddings(cloud,{model,db});
   db.exec(`CREATE TABLE IF NOT EXISTS rag_neural_vectors (
    chunk_id TEXT NOT NULL,
    model TEXT NOT NULL,
