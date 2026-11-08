@@ -44,3 +44,15 @@ test('approved agent lessons expire when their source changes',()=>{
   assert.equal(experience.share({taskKey:'procedure'}).length,0);
  }finally{db.close();}
 });
+
+test('review cannot approve a proposal after its evidence has changed',()=>{
+ const db=new DatabaseSync(':memory:');
+ try{
+  const index=new KnowledgeIndex(db),experience=new RagAgentExperience(db);
+  index.ingest({id:'file:guide',title:'Guide',text:'Version one'});
+  const item=experience.propose({agentId:'agent',taskKey:'task',lesson:'Version one lesson',sourceId:'file:guide'});
+  index.ingest({id:'file:guide',title:'Guide',text:'Version two'});
+  assert.deepEqual(experience.review({id:item.id,approved:true}),{updated:false});
+  assert.deepEqual(experience.share({taskKey:'task'}),[]);
+ }finally{db.close();}
+});
