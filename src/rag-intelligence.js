@@ -17,7 +17,7 @@ export class RagIntelligence {
  }
  embed(text){
   const vec=new Array(this.dimensions).fill(0);
-  for(const word of (String(text).toLocaleLowerCase('ru').match(/[\\p{L}\\p{N}]{2,}/gu)||[])){
+  for(const word of (String(text).toLocaleLowerCase('ru').match(/[\p{L}\p{N}]{2,}/gu)||[])){
    const digest=createHash('sha256').update(word).digest();
    const idx=digest.readUInt32BE(0)%this.dimensions;
    vec[idx]+=(digest[4]&1)?1:-1;
