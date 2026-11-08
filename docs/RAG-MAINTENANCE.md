@@ -44,3 +44,7 @@ Run `npm test` using Node.js 22.13 or newer. The repository also contains a GitH
 - The supervisor performs backups on startup and every five hours; by default the 10 most recent backups are retained.
 - Backups live under `data/backups/`. Do not restore a backup over a running database. Stop the server and make an independent copy of the current `data/` folder before any manual restore.
 - No external backup upload is performed.
+
+## Restore preflight
+
+Use `GET /api/system/backups/restore-check?filename=tsukamiyora-...sqlite` to verify a backup before considering recovery. The filename must be a direct child of `data/backups`; path traversal and out-of-folder symlinks are rejected. The endpoint is read-only and reports `restored:false`. It does not replace any live database. Stop the server, make an independent copy of the current data directory, and only then perform a separately controlled manual restore.
