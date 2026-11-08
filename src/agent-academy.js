@@ -16,8 +16,13 @@ export function createAgentAcademy(db,roles){
   validRole(role);
   if(typeof skill!=='string'||!skill.trim()||skill.length>100||typeof taskKey!=='string'||!taskKey.trim()||taskKey.length>200||!Number.isFinite(score)||score<0||score>1||typeof evidence!=='string'||!evidence.trim()||evidence.length>2000)throw Error('Invalid training result');
   const passed=Number(score>=0.8);
+  // Fixed benchmark identifiers must not inflate levels through repeated submissions.
+  if(taskKey.startsWith('academy:')||taskKey.startsWith('practice:')){
+   const existing=db.prepare('SELECT id FROM agent_training WHERE role=? AND task_key=?').get(role,taskKey);
+   if(existing)return {id:Number(existing.id),role,skill,score,passed:!!passed,duplicate:true,recorded:false};
+  }
   const result=db.prepare('INSERT INTO agent_training(role,skill,task_key,score,passed,evidence) VALUES(?,?,?,?,?,?)').run(role,skill.trim(),taskKey.trim(),score,passed,evidence.trim());
-  return {id:Number(result.lastInsertRowid),role,skill,score,passed:!!passed};
+  return {id:Number(result.lastInsertRowid),role,skill,score,passed:!!passed,duplicate:false,recorded:true};
  };
  const profile=role=>{
   validRole(role);
