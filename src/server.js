@@ -41,6 +41,7 @@ import { buildAgentDevelopmentPlan, summarizeAgentDevelopment } from './agent-de
 import { createAgentTaskEngine } from './agent-task-engine.js';
 import { createAgentJobScheduler } from './agent-job-scheduler.js';
 import { planAgentTask, submitPlannedAgentTask } from './agent-task-router.js';
+import { createAgentExperienceLedger } from './agent-experience-ledger.js';
 import { diagnoseAgents } from './rag-agent-diagnostics.js';
 import { assessCloudBudget } from './cloud-budget.js';
 import { createRagQualityMonitor } from './rag-quality-monitor.js';
@@ -87,6 +88,7 @@ const agentTasks=createAgentTaskEngine(db,{roles:agentCoordinator.roles,handlers
  'tester:practice':()=>runAgentPractice('tester'),
  'performance_analyst:practice':()=>runAgentPractice('performance_analyst')
 }});
+const agentExperienceLedger=createAgentExperienceLedger(db);
 const agentJobScheduler=createAgentJobScheduler(agentTasks,{log:event=>console.error('[agent-jobs]',event)});
 const agentTrainingScheduler=createAgentTrainingScheduler(agentAcademy,{log:event=>console.error('[agent-training]',event)});
 const memory=new ConversationMemory(db);
@@ -205,6 +207,7 @@ app.get('/api/rag/agents/coordinator/diagnostics',async()=>diagnoseAgents({activ
 app.get('/api/rag/agents/coordinator/activity',async(req,reply)=>{try{return {items:agentCoordinator.activity({limit:Number(req.query?.limit??30)})};}catch(e){reply.code(400);return {error:e.message};}});
 app.post('/api/rag/agents/tasks/plan',async(req,reply)=>{try{return planAgentTask(req.body?.text,{allowedActions:agentTasks.status().allowedActions});}catch(e){reply.code(400);return {error:e.message};}});
 app.post('/api/rag/agents/tasks/dispatch',async(req,reply)=>{try{return submitPlannedAgentTask(agentTasks,req.body?.text);}catch(e){reply.code(400);return {error:e.message};}});
+app.get('/api/rag/agents/experience',async(req,reply)=>{try{agentExperienceLedger.capture();return {summary:agentExperienceLedger.summary(),items:agentExperienceLedger.list({role:req.query?.role,limit:Number(req.query?.limit??30)})};}catch(e){reply.code(400);return {error:e.message};}});
 app.get('/api/rag/agents/tasks/status',async()=>({...agentTasks.status(),scheduler:agentJobScheduler.status()}));
 app.get('/api/rag/agents/tasks',async(req,reply)=>{try{return {items:agentTasks.list({limit:Number(req.query?.limit??30)})};}catch(e){reply.code(400);return {error:e.message};}});
 app.post('/api/rag/agents/tasks',async(req,reply)=>{try{reply.code(201);return agentTasks.submit(req.body??{});}catch(e){reply.code(400);return {error:e.message};}});
