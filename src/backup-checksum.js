@@ -1,5 +1,5 @@
 import {createHash,timingSafeEqual} from 'node:crypto';
-import {openSync,readSync,closeSync,existsSync,readFileSync} from 'node:fs';
+import {openSync,readSync,closeSync,existsSync,readFileSync,lstatSync} from 'node:fs';
 
 export function sha256File(path){
  const hash=createHash('sha256'),buffer=Buffer.allocUnsafe(65536);
@@ -11,6 +11,7 @@ export function sha256File(path){
 export function verifySnapshotChecksum(path){
  const sidecar=path+'.sha256';
  if(!existsSync(sidecar))return {present:false,valid:null};
+ if(!lstatSync(sidecar).isFile())return {present:true,valid:false};
  const expected=readFileSync(sidecar,'utf8').trim();
  if(!/^[0-9a-f]{64}$/.test(expected))return {present:true,valid:false};
  const actual=sha256File(path);
