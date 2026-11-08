@@ -6,7 +6,7 @@ const TYPES=new Set(['.txt','.md','.markdown','.json','.csv','.log']);
 export function indexDirectory(db,folder,{maxFiles=2000,maxBytes=1024*1024}={}){
  if(!Number.isInteger(maxFiles)||maxFiles<1||maxFiles>100000||!Number.isInteger(maxBytes)||maxBytes<1||maxBytes>10*1024*1024)throw Error('Invalid limits');
  const root=realpathSync(resolve(folder));if(!statSync(root).isDirectory())throw Error('Not a directory');
- const rag=new KnowledgeIndex(db),pending=[root];let scanned=0,changed=0,skipped=0;
+ const rag=new KnowledgeIndex(db),pending=[root],seen=new Set();let scanned=0,changed=0,skipped=0,removed=0,truncated=false;
  while(pending.length&&scanned<maxFiles){
   const dir=pending.pop();
   for(const entry of readdirSync(dir,{withFileTypes:true})){
