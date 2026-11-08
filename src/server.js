@@ -39,6 +39,7 @@ import { availableAgentPractice, runAgentPractice } from './agent-practice.js';
 import { createAgentTrainingScheduler } from './agent-training-scheduler.js';
 import { buildAgentDevelopmentPlan, summarizeAgentDevelopment } from './agent-development.js';
 import { createAgentTaskEngine } from './agent-task-engine.js';
+import { createAgentJobScheduler } from './agent-job-scheduler.js';
 import { diagnoseAgents } from './rag-agent-diagnostics.js';
 import { assessCloudBudget } from './cloud-budget.js';
 import { createRagQualityMonitor } from './rag-quality-monitor.js';
@@ -85,6 +86,7 @@ const agentTasks=createAgentTaskEngine(db,{roles:agentCoordinator.roles,handlers
  'tester:practice':()=>runAgentPractice('tester'),
  'performance_analyst:practice':()=>runAgentPractice('performance_analyst')
 }});
+const agentJobScheduler=createAgentJobScheduler(agentTasks,{log:event=>console.error('[agent-jobs]',event)});
 const agentTrainingScheduler=createAgentTrainingScheduler(agentAcademy,{log:event=>console.error('[agent-training]',event)});
 const memory=new ConversationMemory(db);
 const chatContext=new ChatContext(db);
@@ -200,7 +202,7 @@ app.post('/api/rag/agents/experience',async(req,reply)=>{try{const result=agentE
 app.post('/api/rag/agents/experience/review',async(req,reply)=>{try{return agentExperience.review(req.body??{});}catch(e){reply.code(400);return {error:e.message};}});
 app.get('/api/rag/agents/coordinator/diagnostics',async()=>diagnoseAgents({activity:agentCoordinator.activity({limit:100}),queue:agentCoordinator.status().queue,cloud:cloud.usageMetrics()}));
 app.get('/api/rag/agents/coordinator/activity',async(req,reply)=>{try{return {items:agentCoordinator.activity({limit:Number(req.query?.limit??30)})};}catch(e){reply.code(400);return {error:e.message};}});
-app.get('/api/rag/agents/tasks/status',async()=>agentTasks.status());
+app.get('/api/rag/agents/tasks/status',async()=>({...agentTasks.status(),scheduler:agentJobScheduler.status()}));
 app.get('/api/rag/agents/tasks',async(req,reply)=>{try{return {items:agentTasks.list({limit:Number(req.query?.limit??30)})};}catch(e){reply.code(400);return {error:e.message};}});
 app.post('/api/rag/agents/tasks',async(req,reply)=>{try{reply.code(201);return agentTasks.submit(req.body??{});}catch(e){reply.code(400);return {error:e.message};}});
 app.post('/api/rag/agents/tasks/run',async(req,reply)=>{try{return await agentTasks.execute({limit:Number(req.body?.limit??3)});}catch(e){reply.code(400);return {error:e.message};}});
@@ -306,6 +308,6 @@ app.get('/ws',{websocket:true},(socket)=>{
 const port=Number(process.env.TSUKAMIYORA_PORT||4177);
 if(!Number.isInteger(port)||port<1||port>65535)throw Error('Invalid port');
 let stopping=false;
-async function stop(){if(stopping)return;stopping=true;try{if(agentAuditTimer)clearInterval(agentAuditTimer);autoIndex.stop();guardianScheduler.stop();agentTrainingScheduler.stop();agentCoordinator.stop();tasks.close();await app.close();db.close();}catch(e){log(String(e));process.exitCode=1;}}
+async function stop(){if(stopping)return;stopping=true;try{if(agentAuditTimer)clearInterval(agentAuditTimer);autoIndex.stop();guardianScheduler.stop();agentJobScheduler.stop();agentTrainingScheduler.stop();agentCoordinator.stop();tasks.close();await app.close();db.close();}catch(e){log(String(e));process.exitCode=1;}}
 process.on('SIGINT',stop);process.on('SIGTERM',stop);
-try{await app.listen({host:'127.0.0.1',port});log('Listening on '+port);autoIndex.start();guardianScheduler.start();agentTrainingScheduler.start();agentTrainingScheduler.run();agentAuditTimer=setInterval(()=>{try{agentCoordinator.enqueueAudit();}catch(error){log({event:'rag:agent-audit-error',error:String(error)});}},30*60*1000);agentAuditTimer.unref();agentCoordinator.enqueueAudit();}catch(e){log(String(e));console.error(e);process.exitCode=1;await stop();}
+try{await app.listen({host:'127.0.0.1',port});log('Listening on '+port);autoIndex.start();guardianScheduler.start();agentJobScheduler.start();agentTrainingScheduler.start();agentTrainingScheduler.run();agentAuditTimer=setInterval(()=>{try{agentCoordinator.enqueueAudit();}catch(error){log({event:'rag:agent-audit-error',error:String(error)});}},30*60*1000);agentAuditTimer.unref();agentCoordinator.enqueueAudit();}catch(e){log(String(e));console.error(e);process.exitCode=1;await stop();}
