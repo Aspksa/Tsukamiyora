@@ -26,3 +26,23 @@ test('background indexer creates settings and scans local library automatically'
   assert.ok(readFileSync(join(root,'data','rag-settings.json'),'utf8').includes('intervalMinutes'));
  }finally{db.close();rmSync(root,{recursive:true,force:true});}
 });
+
+test('scheduled indexer exposes queue status and avoids duplicate queued scans',async()=>{
+ const root=mkdtempSync(join(tmpdir(),'tsuka-queue-')),db=new DatabaseSync(':memory:');
+ try{
+  const library=join(root,'data','library');mkdirSync(library,{recursive:true});
+  writeFileSync(join(library,'knowledge.md'),'Фоновая очередь обновляет знания');
+  const indexer=createAutoIndexer(db,{root});
+  assert.deepEqual(indexer.enqueue(),{queued:true});
+  assert.deepEqual(indexer.enqueue(),{queued:false,reason:'duplicate'});
+  const deadline=Date.now()+2000;
+  while(indexer.status().queue.completed===0){
+   if(Date.now()>deadline)throw Error('queue timeout');
+   await new Promise(resolve=>setTimeout(resolve,10));
+  }
+  assert.equal(indexer.status().runCount,1);
+  assert.equal(indexer.status().queue.failed,0);
+  assert.ok(new KnowledgeIndex(db).search('очередь').length>0);
+  indexer.stop();
+ }finally{db.close();rmSync(root,{recursive:true,force:true});}
+});
