@@ -57,6 +57,7 @@ export class CloudRu {
   const decoder=new TextDecoder();let buffer='',finished=false;
   for await(const chunk of response.body){
    buffer+=decoder.decode(chunk,{stream:true});
+   buffer=buffer.replaceAll('\r\n','\n');
    if(buffer.length>1048576)throw Error('Cloud.ru stream overflow');
    let boundary;
    while((boundary=buffer.indexOf('\n\n'))>=0){
