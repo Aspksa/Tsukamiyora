@@ -4,16 +4,20 @@ const hash=s=>createHash('sha256').update(s).digest('hex');
 const cosine=(a,b)=>{let dot=0,aa=0,bb=0;for(let i=0;i<a.length;i++){dot+=a[i]*b[i];aa+=a[i]*a[i];bb+=b[i]*b[i];}return aa&&bb?dot/Math.sqrt(aa*bb):0;};
 export class RagIntelligence {
  constructor(db,{dimensions=256}={}){
-  this.db=db;this.dimensions=dimensions;
+  if(!Number.isInteger(dimensions)||dimensions<32||dimensions>2048)throw Error('Invalid vector dimensions');
+  this.db=db;this.dimensions=dimensions;this.vectorVersion='hash-v2:'+dimensions;
   db.exec(`CREATE TABLE IF NOT EXISTS rag_vectors(chunk_id TEXT PRIMARY KEY,body_hash TEXT NOT NULL,vector TEXT NOT NULL,updated_at TEXT DEFAULT CURRENT_TIMESTAMP);
   CREATE TABLE IF NOT EXISTS rag_fact_history(id INTEGER PRIMARY KEY AUTOINCREMENT,subject TEXT NOT NULL,predicate TEXT NOT NULL,value TEXT NOT NULL,source_id TEXT NOT NULL,recorded_at TEXT DEFAULT CURRENT_TIMESTAMP);
   CREATE INDEX IF NOT EXISTS rag_fact_history_lookup ON rag_fact_history(subject,predicate);
   CREATE TABLE IF NOT EXISTS rag_ratings(id INTEGER PRIMARY KEY AUTOINCREMENT,query_hash TEXT NOT NULL,source_id TEXT NOT NULL,helpful INTEGER NOT NULL,created_at TEXT DEFAULT CURRENT_TIMESTAMP);`);
+  db.exec('CREATE TABLE IF NOT EXISTS rag_vector_metadata(key TEXT PRIMARY KEY,value TEXT NOT NULL)');
+  const previous=db.prepare("SELECT value FROM rag_vector_metadata WHERE key='version'").get()?.value;
+  if(previous!==this.vectorVersion){db.prepare('DELETE FROM rag_vectors').run();db.prepare("INSERT INTO rag_vector_metadata(key,value) VALUES('version',?) ON CONFLICT(key) DO UPDATE SET value=excluded.value").run(this.vectorVersion);}
   this.stats={indexed:0,searches:0,cacheHits:0};this.queryCache=new Map();
  }
  embed(text){
   const vec=new Array(this.dimensions).fill(0);
-  for(const word of tokens(text)){
+  for(const word of (String(text).toLocaleLowerCase('ru').match(/[\\p{L}\\p{N}]{2,}/gu)||[])){
    const digest=createHash('sha256').update(word).digest();
    const idx=digest.readUInt32BE(0)%this.dimensions;
    vec[idx]+=(digest[4]&1)?1:-1;
@@ -50,6 +54,7 @@ export class RagIntelligence {
  }
  rate({query,sourceId,helpful}){
   if(typeof query!=='string'||!query.trim()||query.length>1000||typeof sourceId!=='string'||sourceId.length>200||typeof helpful!=='boolean')throw Error('Invalid rating');
+  if(!this.db.prepare('SELECT 1 FROM rag_sources WHERE id=?').get(sourceId))throw Error('Source not found');
   this.db.prepare('INSERT INTO rag_ratings(query_hash,source_id,helpful) VALUES(?,?,?)').run(hash(query),sourceId,helpful?1:0);
   return {ok:true};
  }
