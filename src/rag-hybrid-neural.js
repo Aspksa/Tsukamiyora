@@ -10,7 +10,9 @@ export class HybridNeuralRag {
   if(!Number.isInteger(limit)||limit<1||limit>30||!Number.isInteger(neuralLimit)||neuralLimit<1||neuralLimit>30||!Number.isInteger(lexicalLimit)||lexicalLimit<1||lexicalLimit>30)throw Error('Invalid hybrid options');
   // NeuralRag searches only public documents. Keep this path public-only.
   const lexical=this.pipeline.retrieve(query,{mode:'lexical',limit:lexicalLimit}).results.filter(x=>!x.source_id.startsWith('chat:'));
-  const neural=await this.neural.search(query,{limit:neuralLimit});
+  let neural=[],neuralError=null;
+  try{neural=await this.neural.search(query,{limit:neuralLimit});}
+  catch(error){neuralError=error.message;}
   const fused=new Map();
   for(const [rank,hit] of lexical.entries())fused.set(hit.id,{...hit,hybridScore:1/(60+rank+1),retrievers:['lexical']});
   for(const [rank,hit] of neural.entries()){
@@ -22,6 +24,6 @@ export class HybridNeuralRag {
    .filter(hit=>!hit.source_id.startsWith('chat:')&&this.pipeline.verifyCitation(hit.citation))
    .sort((a,b)=>b.hybridScore-a.hybridScore||b.relevance-a.relevance)
    .slice(0,limit);
-  return {query,modeUsed:'hybrid-neural',results,needsReview:results.length===0};
+  return {query,modeUsed:neuralError?'lexical-fallback':'hybrid-neural',results,needsReview:results.length===0, ...(neuralError?{neuralError}:{})};
  }
 }
