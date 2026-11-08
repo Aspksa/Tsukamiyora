@@ -1,3 +1,4 @@
+import { chunkDocument } from './rag-chunking.js';
 import { createHash } from 'node:crypto';
 import { DatabaseSync } from 'node:sqlite';
 const digest=s=>createHash('sha256').update(s).digest('hex');
@@ -19,7 +20,7 @@ export class KnowledgeIndex {
    this.db.prepare('UPDATE rag_sources SET title=?,updated_at=CURRENT_TIMESTAMP WHERE id=? AND title<>?').run(title,id,title);
    return {changed:false,chunks:0};
   }
-  const parts=[];for(let p=0;p<text.length;p+=chunkSize)parts.push(text.slice(p,p+chunkSize));
+  const parts=chunkDocument(text,{chunkSize});
   this.db.exec('SAVEPOINT rag_index_write');
   try{
    this.db.prepare('DELETE FROM rag_chunks WHERE source_id=?').run(id);
