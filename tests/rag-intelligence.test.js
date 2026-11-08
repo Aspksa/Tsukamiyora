@@ -57,3 +57,16 @@ test('RAG feedback cannot reference a nonexistent source',()=>{
   assert.equal(intel.metrics().ratings,0);
  }finally{db.close();}
 });
+
+test('adaptive corrective retrieval retries sparse terms without model calls',()=>{
+ const db=new DatabaseSync(':memory:');
+ try{
+  const index=new KnowledgeIndex(db);
+  index.ingest({id:'repair',title:'Maintenance',text:'автомобиль двигатель масло ремонт'});
+  const pipeline=new RagPipeline(index);
+  const result=pipeline.retrieve('несуществующийтермин двигатель',{mode:'adaptive'});
+  assert.ok(result.results.some(x=>x.source_id==='repair'));
+  assert.equal(pipeline.metrics().correctivePasses,1);
+  assert.ok(result.results.every(x=>pipeline.verifyCitation(x.citation)));
+ }finally{db.close();}
+});
