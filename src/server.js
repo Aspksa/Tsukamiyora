@@ -34,6 +34,8 @@ import { createAutoIndexer } from './rag-auto.js';
 import { RagAgentExperience } from './rag-agent-experience.js';
 import { createRagAgentCoordinator } from './rag-agent-coordinator.js';
 import { diagnoseAgents } from './rag-agent-diagnostics.js';
+import { assessCloudBudget } from './cloud-budget.js';
+import { createRagQualityMonitor } from './rag-quality-monitor.js';
 import { inspectBackups } from './backup-inspect.js';
 import { checkRestoreCandidate } from './backup-restore-check.js';
 import { tasks, metrics, modules, events } from './runtime.js';
@@ -66,6 +68,7 @@ const memory=new ConversationMemory(db);
 const chatContext=new ChatContext(db);
 const cloud=new CloudRu();
 const chatService=new ChatService(db,cloud);
+const qualityMonitor=createRagQualityMonitor(process.cwd());
 mkdirSync('logs',{recursive:true});
 const log=(message)=>appendFileSync('logs/core.jsonl',JSON.stringify({at:new Date().toISOString(),message})+'\n');
 const autoIndex=createAutoIndexer(db,{log});
@@ -108,6 +111,7 @@ app.get('/health',async()=>{db.prepare('SELECT 1').get();return {status:'ok',ser
 app.get('/',async()=>({name:'Tsukamiyora Core',status:'running',settings:'/settings',chat:'/chat',endpoints:['/health','/api/events','/api/metrics','/api/modules','/api/tasks','/api/rag/search','/api/rag/documents','/api/rag/context','/api/rag/status','/ws']}));
 app.get('/api/metrics',async()=>({...metrics(),chat:chatService.metrics(),cloud:cloud.usageMetrics()}));
 app.get('/api/cloud/usage',async()=>cloud.usageMetrics());
+app.get('/api/cloud/budget',async(req,reply)=>{try{return assessCloudBudget(cloud.usageMetrics(),{maxRequests:Number(req.query?.maxRequests??1000),maxTokens:Number(req.query?.maxTokens??1000000)});}catch(e){reply.code(400);return {error:e.message};}});
 app.get('/api/modules',async()=>({modules:modules()}));
 app.post('/api/tasks',async(req,reply)=>{
  const {kind,payload,priority=0}=req.body??{};
@@ -206,6 +210,9 @@ app.get('/api/rag/knowledge/facts',async(req,reply)=>{try{return {facts:lifecycl
 app.get('/api/rag/knowledge/history',async(req,reply)=>{try{return {history:lifecycle.history({subject:req.query?.subject,predicate:req.query?.predicate??'значение'})};}catch(e){reply.code(400);return {error:e.message};}});
 app.get('/api/rag/knowledge/stale',async(req,reply)=>{try{return {stale:lifecycle.stale({days:Number(req.query?.days??90)})};}catch(e){reply.code(400);return {error:e.message};}});
 app.post('/api/rag/evaluate',async(req,reply)=>{try{return evaluateRag(rag,req.body?.cases,{limit:req.body?.limit??5,mode:req.body?.mode??'adaptive'});}catch(e){reply.code(400);return {error:e.message};}});
+app.get('/api/rag/evaluate/baseline',async(req,reply)=>{try{return {baseline:qualityMonitor.load()};}catch(e){reply.code(400);return {error:e.message};}});
+app.post('/api/rag/evaluate/baseline',async(req,reply)=>{try{return qualityMonitor.save(req.body?.baseline);}catch(e){reply.code(400);return {error:e.message};}});
+app.post('/api/rag/evaluate/regression',async(req,reply)=>{try{return qualityMonitor.check(req.body?.candidate);}catch(e){reply.code(400);return {error:e.message};}});
 app.post('/api/rag/evaluate/compare',async(req,reply)=>{try{return compareRag(req.body?.before,req.body?.after);}catch(e){reply.code(400);return {error:e.message};}});
 app.get('/api/rag/duplicates',async(req,reply)=>{try{return {duplicates:ragIntelligence.duplicates({limit:Number(req.query?.limit??100)})};}catch(e){reply.code(400);return {error:e.message};}});
 app.get('/api/rag/contradictions',async(req,reply)=>{try{return {contradictions:ragIntelligence.contradictions({limit:Number(req.query?.limit??100)})};}catch(e){reply.code(400);return {error:e.message};}});
