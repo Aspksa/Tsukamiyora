@@ -54,6 +54,11 @@ export class RagIntelligence {
   if(!duplicate)this.db.prepare('INSERT INTO rag_fact_history(subject,predicate,value,source_id) VALUES(?,?,?,?)').run(subject,predicate,value,sourceId);
   return {created:!duplicate,conflicts:previous.filter(x=>x.value!==value),history:previous};
  }
+ feedbackScores(query){
+  if(typeof query!=='string'||!query.trim()||query.length>1000)throw Error('Invalid feedback query');
+  const rows=this.db.prepare('SELECT source_id, SUM(CASE WHEN helpful=1 THEN 1 ELSE -1 END) AS balance, COUNT(*) AS votes FROM rag_ratings WHERE query_hash=? GROUP BY source_id').all(hash(query));
+  return new Map(rows.map(row=>[row.source_id,Math.max(-0.01,Math.min(0.01,row.balance/(row.votes+5)*0.01))]));
+ }
  rate({query,sourceId,helpful}){
   if(typeof query!=='string'||!query.trim()||query.length>1000||typeof sourceId!=='string'||sourceId.length>200||typeof helpful!=='boolean')throw Error('Invalid rating');
   if(!this.db.prepare('SELECT 1 FROM rag_sources WHERE id=?').get(sourceId))throw Error('Source not found');
