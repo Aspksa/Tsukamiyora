@@ -1,8 +1,10 @@
+import {RagTopicGraph} from './rag-topic-graph.js';
+import {KnowledgeLifecycle} from './rag-lifecycle.js';
 // Read-only guardian report. Never deletes evidence, performs network calls or changes facts.
 import {RagKnowledgeAudit} from './rag-audit.js';
 import {RagFactReview} from './rag-fact-review.js';
 export class RagKnowledgeGuardian {
- constructor(db){this.db=db;this.audit=new RagKnowledgeAudit(db);this.review=new RagFactReview(db);}
+ constructor(db){this.db=db;new RagTopicGraph(db);new KnowledgeLifecycle(db);this.audit=new RagKnowledgeAudit(db);this.review=new RagFactReview(db);}
  inspect({limit=50,staleDays=90}={}){
   const audit=this.audit.inspect({limit,staleDays});
   const facts=this.review.inspect({limit,staleDays});
