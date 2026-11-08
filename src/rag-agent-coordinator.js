@@ -21,10 +21,20 @@ export function createRagAgentCoordinator(db,{log=()=>{}}={}){
  };
  const rejectStale=({limit=30}={})=>{
   const audit=auditPending({limit});
-  for(const id of audit.staleIds){
-   if(experience.review({id,approved:false}).updated)rejected++;
+  db.exec('SAVEPOINT rag_agent_stale_cleanup');
+  try{
+   let updated=0;
+   for(const id of audit.staleIds){
+    if(experience.review({id,approved:false}).updated)updated++;
+   }
+   db.exec('RELEASE SAVEPOINT rag_agent_stale_cleanup');
+   rejected+=updated;
+   return {...audit,rejected:updated,totalRejected:rejected};
+  }catch(error){
+   db.exec('ROLLBACK TO SAVEPOINT rag_agent_stale_cleanup');
+   db.exec('RELEASE SAVEPOINT rag_agent_stale_cleanup');
+   throw error;
   }
-  return {...audit,rejected:rejected};
  };
  const enqueueAudit=()=>{
   const result=queue.submit('agent:evidence-audit',()=>rejectStale());
