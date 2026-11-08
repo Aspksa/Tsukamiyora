@@ -42,6 +42,10 @@ jobs:
           done
       - name: Run all tests
         run: npm test
+      - name: Verify backup CLI
+        run: npm run backup:check
+      - name: Verify storage diagnostics
+        run: npm run diagnose
       - name: Write diagnostic summary
         if: always()
         shell: bash
