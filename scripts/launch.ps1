@@ -2,7 +2,7 @@ $ErrorActionPreference = 'Stop'
 $root = [IO.Path]::GetFullPath($env:TSUKA_ROOT)
 Set-Location -LiteralPath $root
 # Stable, non-secret instance identifier avoids opening an unrelated old copy.
-$rootIdText = $root.TrimEnd([char[]]@('\\','/')).ToLowerInvariant()
+$rootIdText = $root.TrimEnd([char[]]@('\','/')).ToLowerInvariant()
 $hashProvider = [Security.Cryptography.SHA256]::Create()
 try { $instanceId = [BitConverter]::ToString($hashProvider.ComputeHash([Text.Encoding]::UTF8.GetBytes($rootIdText))).Replace('-','').ToLowerInvariant().Substring(0,16) }
 finally { $hashProvider.Dispose() }
