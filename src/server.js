@@ -145,7 +145,7 @@ app.post('/api/cloud/settings',async(req,reply)=>{try{return cloud.save(req.body
 app.get('/api/cloud/models',async(req,reply)=>{try{return await cloud.models();}catch(e){reply.code(e.status||503);return {error:e.message};}});
 app.post('/api/cloud/test',async(req,reply)=>{try{return await cloud.testModel();}catch(e){reply.code(e.status||503);return {error:e.message};}});
 app.post('/api/cloud/chat',async(req,reply)=>{try{const response=await cloud.complete(req.body?.messages);return {message:response.choices?.[0]?.message??null,usage:response.usage??null};}catch(e){reply.code(e.status||503);return {error:e.message};}});
-app.get('/health',async()=>{db.prepare('SELECT 1').get();return {status:'ok',service:'tsukamiyora-core',version:'0.3.0',database:'ok'};});
+app.get('/health',async()=>{db.prepare('SELECT 1').get();return {status:'ok',service:'tsukamiyora-core',version:'0.3.0',database:'ok',instanceId:process.env.TSUKAMIYORA_INSTANCE_ID||null};});
 app.get('/',async(req,reply)=>reply.redirect('/chat'));
 app.get('/api/metrics',async()=>({...metrics(),chat:chatService.metrics(),cloud:cloud.usageMetrics()}));
 app.get('/api/cloud/usage',async()=>cloud.usageMetrics());

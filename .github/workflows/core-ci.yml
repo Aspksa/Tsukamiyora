@@ -63,7 +63,9 @@ jobs:
             & cmd.exe /c 'Tsukamiyora.bat'
             if ($LASTEXITCODE -ne 0) { throw "BAT exited with $LASTEXITCODE" }
             $response = Invoke-RestMethod 'http://127.0.0.1:4199/health' -TimeoutSec 5
-            if ($response.status -ne 'ok' -or $response.database -ne 'ok') { throw 'Health check failed' }
+            if ($response.status -ne 'ok' -or $response.database -ne 'ok' -or -not $response.instanceId) { throw 'Health check failed' }
+            $chat = Invoke-WebRequest 'http://127.0.0.1:4199/chat' -UseBasicParsing -TimeoutSec 5
+            if ($chat.StatusCode -ne 200 -or $chat.Content -notmatch 'id="welcome"') { throw 'Chat HTML not ready' }
             & cmd.exe /c 'Tsukamiyora.bat'
             if ($LASTEXITCODE -ne 0) { throw 'Second launch failed' }
           } finally {
@@ -88,9 +90,12 @@ jobs:
             & '.\Tsukamiyora.bat'
             if ($LASTEXITCODE -ne 0) { throw "Portable BAT exited with $LASTEXITCODE" }
             $health = Invoke-RestMethod 'http://127.0.0.1:4207/health' -TimeoutSec 5
-            if ($health.status -ne 'ok' -or $health.database -ne 'ok') { throw 'Portable health check failed' }
+            if ($health.status -ne 'ok' -or $health.database -ne 'ok' -or -not $health.instanceId) { throw 'Portable health check failed' }
             $chat = Invoke-WebRequest 'http://127.0.0.1:4207/chat' -UseBasicParsing -TimeoutSec 5
-            if ($chat.StatusCode -ne 200 -or $chat.Content -notmatch 'Tsukamiyora') { throw 'Portable chat page not served' }
+            if ($chat.StatusCode -ne 200 -or $chat.Content -notmatch 'id="welcome"' -or $chat.Content -notmatch 'id="message"') { throw 'Portable chat page not served' }
+            $shortcut = Join-Path $target 'Tsukamiyora.url'
+            if (-not (Test-Path -LiteralPath $shortcut)) { throw 'Browser shortcut was not created' }
+            if ((Get-Content -LiteralPath $shortcut -Raw) -notmatch 'http://127.0.0.1:4207/chat') { throw 'Shortcut points to the wrong port' }
             & '.\Tsukamiyora.bat'
             if ($LASTEXITCODE -ne 0) { throw 'Portable second BAT launch failed' }
           } catch {
