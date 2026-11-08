@@ -45,7 +45,7 @@ async function loadPending(){
    if(!item.evidenceCurrent){const warning=document.createElement('small');warning.textContent='Источник изменён или удалён — подтверждение недоступно';box.append(warning);}
    for(const [caption,approved] of [['Подтвердить',true],['Отклонить',false]]){
     const button=document.createElement('button');button.textContent=caption;button.style.marginRight='8px';
-    button.disabled=!item.evidenceCurrent;
+    button.disabled=approved&&!item.evidenceCurrent;
     button.addEventListener('click',async()=>{
      button.disabled=true;
      try{
