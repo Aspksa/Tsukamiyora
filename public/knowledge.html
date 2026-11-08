@@ -18,9 +18,10 @@ a{color:#dfc58b} .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax
 </div>
 <section><h2>История проверок</h2><pre id="history">Загрузка…</pre></section>
 <section><h2>Опыт агентов — ожидает проверки</h2><div id="pending" aria-live="polite">Загрузка…</div></section>
+<section><h2>Журнал решений агентов</h2><pre id="reviews">Загрузка…</pre></section>
 <script>
 async function refresh(){
- const endpoints=[['indexer','/api/rag/indexer/status'],['guardian','/api/rag/guardian/status'],['history','/api/rag/guardian/history?limit=15']];
+ const endpoints=[['indexer','/api/rag/indexer/status'],['guardian','/api/rag/guardian/status'],['history','/api/rag/guardian/history?limit=15'],['reviews','/api/rag/agents/experience/reviews?limit=20']];
  await Promise.all(endpoints.map(async([id,url])=>{
   const target=document.getElementById(id);
   try{const response=await fetch(url,{cache:'no-store'});if(!response.ok)throw Error('HTTP '+response.status);
