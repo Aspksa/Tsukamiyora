@@ -37,7 +37,7 @@ jobs:
       - name: Check module syntax
         shell: bash
         run: |
-          for file in src/rag*.js src/cloud-embeddings.js tests/rag*.test.js; do
+          for file in src/*.js scripts/*.js tests/*.test.js; do
             node --check "$file"
           done
       - name: Run all tests
