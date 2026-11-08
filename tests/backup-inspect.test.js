@@ -25,7 +25,7 @@ test('backup inventory validates snapshots and identifies damaged copies',()=>{
  }finally{rmSync(root,{recursive:true,force:true});}
 });
 
-test('backup inventory rejects a snapshot symlink escaping its directory',()=>{
+test('backup inventory rejects a snapshot symlink escaping its directory',{skip:process.platform==='win32'?'Windows symlink privileges vary':false},()=>{
  const root=mkdtempSync(join(tmpdir(),'tsuka-backup-link-'));
  const external=mkdtempSync(join(tmpdir(),'tsuka-backup-external-'));
  try{
