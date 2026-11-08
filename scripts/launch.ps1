@@ -41,7 +41,7 @@ function Find-Node {
   $zip = Join-Path $temp $filename
   Invoke-WebRequest -Uri "$base/$filename" -OutFile $zip -TimeoutSec 180 -UseBasicParsing
   $sums = (Invoke-WebRequest -Uri "$base/SHASUMS256.txt" -TimeoutSec 25 -UseBasicParsing).Content
-  $entry = ($sums -split "`n" | Where-Object { $_ -match ("^([0-9a-fA-F]{64})\s+" + [regex]::Escape($filename) + "$") } | Select-Object -First 1)
+  $entry = ($sums -split "`n" | ForEach-Object { $_.Trim() } | Where-Object { $_ -match ("^([0-9a-fA-F]{64})\s+" + [regex]::Escape($filename) + "$") } | Select-Object -First 1)
   if (-not $entry) { throw 'SHA256 entry not found for downloaded Node.js' }
   $expected = ($entry -split '\s+')[0].ToLowerInvariant()
   $actual = (Get-FileHash -LiteralPath $zip -Algorithm SHA256).Hash.ToLowerInvariant()
@@ -50,10 +50,14 @@ function Find-Node {
   if (Test-Path -LiteralPath $stage) { Remove-Item -LiteralPath $stage -Recurse -Force }
   Expand-Archive -LiteralPath $zip -DestinationPath $stage -Force
   $source = Join-Path $stage "node-$version-win-x64"
+  if (-not (Test-Path -LiteralPath (Join-Path $source 'node.exe'))) { throw 'Node.js archive layout invalid' }
   $target = Join-Path $root '.runtime\node'
   if (Test-Path -LiteralPath $target) { Remove-Item -LiteralPath $target -Recurse -Force }
   Move-Item -LiteralPath $source -Destination $target
-  return (Join-Path $target 'node.exe')
+  $installed = Join-Path $target 'node.exe'
+  $installedVersion = (& $installed -p 'process.versions.node').Trim()
+  if ($LASTEXITCODE -ne 0 -or [version]$installedVersion -lt [version]'22.13.0') { throw 'Downloaded Node.js failed runtime verification' }
+  return $installed
 }
 $mutex = New-Object System.Threading.Mutex($false, 'Local\TsukamiyoraCoreLauncher')
 $locked = $false
