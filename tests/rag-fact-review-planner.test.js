@@ -19,6 +19,9 @@ test('fact review flags conflicts and preserves citations without overwriting fa
   assert.equal(result.length,1);
   assert.equal(result[0].conflicting,true);
   assert.equal(result[0].alternatives.length,2);
+  assert.equal(result[0].requiresReview,true);
+  assert.ok(result[0].alternatives.every(a=>a.independentSourcesVerified===false));
+  assert.ok(result[0].alternatives.every(a=>a.evidenceStrength>=0&&a.evidenceStrength<=1));
   assert.ok(result[0].alternatives.every(a=>a.citations.length===1));
   assert.equal(db.prepare('SELECT COUNT(*) n FROM rag_evidence').get().n,2);
  }finally{db.close();}
