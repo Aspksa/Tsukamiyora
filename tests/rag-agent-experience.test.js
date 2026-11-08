@@ -56,3 +56,20 @@ test('review cannot approve a proposal after its evidence has changed',()=>{
   assert.deepEqual(experience.share({taskKey:'task'}),[]);
  }finally{db.close();}
 });
+
+test('pending lessons include current evidence flag and exclude approved entries',()=>{
+ const db=new DatabaseSync(':memory:');
+ try{
+  const index=new KnowledgeIndex(db),experience=new RagAgentExperience(db);
+  index.ingest({id:'file:guide',title:'Guide',text:'Procedure A'});
+  const a=experience.propose({agentId:'a',taskKey:'task',lesson:'Check A',sourceId:'file:guide'});
+  const b=experience.propose({agentId:'b',taskKey:'task',lesson:'Check B',sourceId:'file:guide'});
+  assert.equal(experience.pending().length,2);
+  assert.equal(experience.pending()[0].evidenceCurrent,1);
+  experience.review({id:a.id,approved:true});
+  assert.deepEqual(experience.pending().map(row=>row.id),[b.id]);
+  index.ingest({id:'file:guide',title:'Guide',text:'Procedure B'});
+  assert.equal(experience.pending()[0].evidenceCurrent,0);
+  assert.throws(()=>experience.pending({limit:101}),/Invalid pending limit/);
+ }finally{db.close();}
+});
