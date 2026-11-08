@@ -79,6 +79,8 @@ app.get('/api/memory/:conversationId',async(req,reply)=>{
 });
 app.post('/api/rag/semantic/index',async(req,reply)=>{try{return ragIntelligence.sync({limit:Number(req.body?.limit??500)});}catch(e){reply.code(400);return {error:e.message};}});
 app.get('/api/rag/semantic/search',async(req,reply)=>{try{return {results:ragIntelligence.semantic(req.query?.q??'',{limit:Number(req.query?.limit??5)})};}catch(e){reply.code(400);return {error:e.message};}});
+app.get('/api/rag/duplicates',async(req,reply)=>{try{return {duplicates:ragIntelligence.duplicates({limit:Number(req.query?.limit??100)})};}catch(e){reply.code(400);return {error:e.message};}});
+app.get('/api/rag/contradictions',async(req,reply)=>{try{return {contradictions:ragIntelligence.contradictions({limit:Number(req.query?.limit??100)})};}catch(e){reply.code(400);return {error:e.message};}});
 app.get('/api/rag/graph',async(req,reply)=>{try{return {relations:ragIntelligence.graph(req.query?.subject??'')};}catch(e){reply.code(400);return {error:e.message};}});
 app.post('/api/rag/temporal/facts',async(req,reply)=>{try{return ragIntelligence.recordFact(req.body??{});}catch(e){reply.code(400);return {error:e.message};}});
 app.post('/api/rag/feedback',async(req,reply)=>{try{return ragIntelligence.rate(req.body??{});}catch(e){reply.code(400);return {error:e.message};}});
