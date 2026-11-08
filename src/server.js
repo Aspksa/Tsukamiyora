@@ -44,6 +44,7 @@ import { planAgentTask, submitPlannedAgentTask } from './agent-task-router.js';
 import { createAgentExperienceLedger } from './agent-experience-ledger.js';
 import { analyzeAgentFailures } from './agent-failure-analysis.js';
 import { evaluateAgentCandidate } from './agent-candidate-evaluation.js';
+import { runTrustedAgentBenchmark, compareTrustedStrategies } from './agent-trusted-benchmark.js';
 import { diagnoseAgents } from './rag-agent-diagnostics.js';
 import { assessCloudBudget } from './cloud-budget.js';
 import { createRagQualityMonitor } from './rag-quality-monitor.js';
@@ -210,6 +211,9 @@ app.get('/api/rag/agents/coordinator/activity',async(req,reply)=>{try{return {it
 app.post('/api/rag/agents/tasks/plan',async(req,reply)=>{try{return planAgentTask(req.body?.text,{allowedActions:agentTasks.status().allowedActions});}catch(e){reply.code(400);return {error:e.message};}});
 app.post('/api/rag/agents/tasks/dispatch',async(req,reply)=>{try{return submitPlannedAgentTask(agentTasks,req.body?.text);}catch(e){reply.code(400);return {error:e.message};}});
 app.get('/api/rag/agents/failures',async(req,reply)=>{try{return analyzeAgentFailures(db,{limit:Number(req.query?.limit??100)});}catch(e){reply.code(400);return {error:e.message};}});
+app.get('/api/rag/agents/academy/benchmark',async()=>({benchmarkId:'ranked-results-v1',strategies:['original','reverse','alphabetical'],serverScored:true,heldOut:false}));
+app.post('/api/rag/agents/academy/benchmark/run',async(req,reply)=>{try{return runTrustedAgentBenchmark(req.body?.strategy);}catch(e){reply.code(400);return {error:e.message};}});
+app.post('/api/rag/agents/academy/benchmark/compare',async(req,reply)=>{try{return compareTrustedStrategies(req.body?.baselineStrategy,req.body?.candidateStrategy);}catch(e){reply.code(400);return {error:e.message};}});
 app.post('/api/rag/agents/academy/candidates/evaluate',async(req,reply)=>{try{return evaluateAgentCandidate(req.body?.baseline,req.body?.candidate,{minimumCases:Number(req.body?.minimumCases??5)});}catch(e){reply.code(400);return {error:e.message};}});
 app.get('/api/rag/agents/experience',async(req,reply)=>{try{agentExperienceLedger.capture();return {summary:agentExperienceLedger.summary(),items:agentExperienceLedger.list({role:req.query?.role,limit:Number(req.query?.limit??30)})};}catch(e){reply.code(400);return {error:e.message};}});
 app.get('/api/rag/agents/tasks/status',async()=>({...agentTasks.status(),scheduler:agentJobScheduler.status()}));
