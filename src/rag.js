@@ -32,12 +32,22 @@ export class KnowledgeIndex {
  search(query,{limit=5}={}){
   if(typeof query!=='string'||query.length>1000||!Number.isInteger(limit)||limit<1||limit>30)throw Error('Invalid search');
   const terms=tokens(query);if(!terms.length)return [];
-  const key=digest(query+':'+limit);if(this.cache.has(key))return this.cache.get(key);
+
   const fts=terms.map(t=>'"'+t.replaceAll('"','')+'"').join(' OR ');
   const rows=this.db.prepare(`SELECT c.id,c.source_id,s.title,c.position,c.body,bm25(rag_fts) AS score FROM rag_fts JOIN rag_chunks c ON c.rowid=rag_fts.rowid JOIN rag_sources s ON s.id=c.source_id WHERE rag_fts MATCH ? ORDER BY score LIMIT ?`).all(fts,Math.min(limit*4,100));
   const q=new Set(terms);const results=rows.map(r=>({...r,overlap:tokens(r.body).filter(t=>q.has(t)).length})).sort((a,b)=>b.overlap-a.overlap||a.score-b.score).slice(0,limit).map(({overlap,...r})=>({...r,citation:{sourceId:r.source_id,title:r.title,chunkId:r.id}}));
-  if(this.cache.size>=128)this.cache.delete(this.cache.keys().next().value);
-  this.cache.set(key,results);return results;
+  return results;
+ }
+ removeSource(id){
+  if(typeof id!=='string'||!id.startsWith('file:'))throw Error('Only indexed file sources may be removed');
+  this.db.exec('BEGIN IMMEDIATE');
+  try{
+   this.db.prepare('DELETE FROM rag_chunks WHERE source_id=?').run(id);
+   this.db.prepare('DELETE FROM rag_edges WHERE source_id=?').run(id);
+   this.db.prepare('DELETE FROM rag_facts WHERE source_id=?').run(id);
+   const result=this.db.prepare('DELETE FROM rag_sources WHERE id=?').run(id);
+   this.db.exec('COMMIT');this.cache.clear();return result.changes>0;
+  }catch(error){this.db.exec('ROLLBACK');throw error;}
  }
  relate(subject,relation,object,sourceId){
   if(![subject,relation,object,sourceId].every(x=>typeof x==='string'&&x.length>0&&x.length<=200))throw Error('Invalid relation');
