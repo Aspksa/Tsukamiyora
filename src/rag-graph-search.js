@@ -16,7 +16,10 @@ export class GraphAwareRag {
     WHERE c.source_id=? ORDER BY c.position LIMIT 500`);
    for(const sourceId of sources){
     const triples=graph.edges.filter(edge=>edge.source_id===sourceId);
-    const hit=stmt.all(sourceId).find(chunk=>triples.some(edge=>chunk.body.split(/\r?\n/).some(line=>line.trim()===`${edge.subject} -> ${edge.relation} -> ${edge.object}`)));
+    const hit=stmt.all(sourceId).find(chunk=>triples.some(edge=>chunk.body.split(/\r?\n/).some(line=>{
+     const match=/^\s*([^\n>]{2,100})\s*->\s*([^\n>]{2,100})\s*->\s*([^\n>]{2,100})\s*$/.exec(line);
+     return match&&match[1].trim()===edge.subject&&match[2].trim()===edge.relation&&match[3].trim()===edge.object;
+    })));
     if(hit)citations.push({...hit,citation:{sourceId:hit.source_id,chunkId:hit.id,title:hit.title},graphEvidence:true});
    }
   }
