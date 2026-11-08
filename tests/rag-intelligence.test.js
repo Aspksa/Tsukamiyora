@@ -122,3 +122,21 @@ test('vector sync rolls back entire batch when one vector write fails',()=>{
   assert.equal(db.prepare('SELECT COUNT(*) AS n FROM rag_vectors').get().n,2);
  }finally{db.close();}
 });
+
+test('failed vector version migration preserves previous vectors and metadata',()=>{
+ const db=new DatabaseSync(':memory:');
+ try{
+  const index=new KnowledgeIndex(db);
+  index.ingest({id:'original',title:'Original',text:'тестовая память'});
+  const old=new RagIntelligence(db,{dimensions:128});
+  old.sync();
+  const before=db.prepare('SELECT vector FROM rag_vectors LIMIT 1').get().vector;
+  db.exec(`CREATE TRIGGER fail_version BEFORE UPDATE ON rag_vector_metadata BEGIN SELECT RAISE(ABORT,'migration rejected'); END;`);
+  assert.throws(()=>new RagIntelligence(db,{dimensions:256}),/migration rejected/);
+  assert.equal(db.prepare("SELECT value FROM rag_vector_metadata WHERE key='version'").get().value,'hash-v2:128');
+  assert.equal(db.prepare('SELECT vector FROM rag_vectors LIMIT 1').get().vector,before);
+  db.exec('DROP TRIGGER fail_version');
+  const upgraded=new RagIntelligence(db,{dimensions:256});
+  assert.equal(upgraded.sync().indexed,1);
+ }finally{db.close();}
+});
