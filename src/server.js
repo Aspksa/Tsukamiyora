@@ -48,6 +48,7 @@ import { runTrustedAgentBenchmark, compareTrustedStrategies } from './agent-trus
 import { runAgentCapabilitySuite } from './agent-capability-suite.js';
 import { runDocumentRetrievalBenchmark } from './agent-document-benchmark.js';
 import { evaluateLabeledDocuments, compareLabeledDocumentModes } from './agent-labeled-document-eval.js';
+import { createAgentEvaluationDrafts } from './agent-evaluation-drafts.js';
 import { diagnoseAgents } from './rag-agent-diagnostics.js';
 import { assessCloudBudget } from './cloud-budget.js';
 import { createRagQualityMonitor } from './rag-quality-monitor.js';
@@ -59,6 +60,7 @@ const app=Fastify({logger:false,bodyLimit:1048576});
 await app.register(websocket);
 const db=openStorage();
 const rag=new KnowledgeIndex(db);
+const agentEvaluationDrafts=createAgentEvaluationDrafts(db);
 const ragPipeline=new RagPipeline(rag);
 const ragIntelligence=new RagIntelligence(db);
 const lifecycle=new KnowledgeLifecycle(db);
@@ -214,6 +216,10 @@ app.get('/api/rag/agents/coordinator/activity',async(req,reply)=>{try{return {it
 app.post('/api/rag/agents/tasks/plan',async(req,reply)=>{try{return planAgentTask(req.body?.text,{allowedActions:agentTasks.status().allowedActions});}catch(e){reply.code(400);return {error:e.message};}});
 app.post('/api/rag/agents/tasks/dispatch',async(req,reply)=>{try{return submitPlannedAgentTask(agentTasks,req.body?.text);}catch(e){reply.code(400);return {error:e.message};}});
 app.get('/api/rag/agents/failures',async(req,reply)=>{try{return analyzeAgentFailures(db,{limit:Number(req.query?.limit??100)});}catch(e){reply.code(400);return {error:e.message};}});
+app.post('/api/rag/agents/academy/documents/drafts/generate',async(req,reply)=>{try{return agentEvaluationDrafts.generate({limit:Number(req.body?.limit??20)});}catch(e){reply.code(400);return {error:e.message};}});
+app.get('/api/rag/agents/academy/documents/drafts',async(req,reply)=>{try{return {items:agentEvaluationDrafts.list({limit:Number(req.query?.limit??30)})};}catch(e){reply.code(400);return {error:e.message};}});
+app.post('/api/rag/agents/academy/documents/drafts/review',async(req,reply)=>{try{return agentEvaluationDrafts.review(req.body??{});}catch(e){reply.code(400);return {error:e.message};}});
+app.post('/api/rag/agents/academy/documents/drafts/evaluate',async(req,reply)=>{try{return evaluateLabeledDocuments(rag,{cases:agentEvaluationDrafts.approved(),limit:Number(req.body?.limit??5),mode:req.body?.mode??'lexical'});}catch(e){reply.code(400);return {error:e.message};}});
 app.post('/api/rag/agents/academy/documents/evaluate',async(req,reply)=>{try{return evaluateLabeledDocuments(rag,req.body??{});}catch(e){reply.code(400);return {error:e.message};}});
 app.post('/api/rag/agents/academy/documents/compare',async(req,reply)=>{try{return compareLabeledDocumentModes(rag,req.body??{});}catch(e){reply.code(400);return {error:e.message};}});
 app.get('/api/rag/agents/academy/documents/benchmark',async(req,reply)=>{try{return runDocumentRetrievalBenchmark({mode:req.query?.mode??'lexical',limit:Number(req.query?.limit??3)});}catch(e){reply.code(400);return {error:e.message};}});
