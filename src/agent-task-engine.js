@@ -18,7 +18,11 @@ export function createAgentTaskEngine(db,{roles,handlers={},maxJobs=3,log=()=>{}
   const result=db.prepare('INSERT INTO agent_jobs(role,action,input_json) VALUES(?,?,?)').run(role,action,serialized);
   return {id:Number(result.lastInsertRowid),role,action,status:'queued'};
  };
+ let executing=false;
  const execute=async({limit=maxJobs}={})=>{
+  if(executing)return {busy:true,results:[],processed:0};
+  executing=true;
+  try{
   if(!Number.isInteger(limit)||limit<1||limit>maxJobs)throw Error('Invalid execution limit');
   const jobs=db.prepare("SELECT id,role,action,input_json FROM agent_jobs WHERE status='queued' ORDER BY id LIMIT ?").all(limit);
   const results=[];
@@ -38,13 +42,14 @@ export function createAgentTaskEngine(db,{roles,handlers={},maxJobs=3,log=()=>{}
     results.push({id:job.id,status:'failed'});
    }
   }
-  return {results,processed:results.length};
+  return {busy:false,results,processed:results.length};
+  }finally{executing=false;}
  };
  const list=({limit=30}={})=>{
   if(!Number.isInteger(limit)||limit<1||limit>100)throw Error('Invalid job list limit');
   return db.prepare('SELECT id,role,action,status,result_json,error,created_at,finished_at FROM agent_jobs ORDER BY id DESC LIMIT ?').all(limit);
  };
- const status=()=>({queued:db.prepare("SELECT COUNT(*) AS n FROM agent_jobs WHERE status='queued'").get().n,
+ const status=()=>({executing,queued:db.prepare("SELECT COUNT(*) AS n FROM agent_jobs WHERE status='queued'").get().n,
   completed:db.prepare("SELECT COUNT(*) AS n FROM agent_jobs WHERE status='completed'").get().n,
   failed:db.prepare("SELECT COUNT(*) AS n FROM agent_jobs WHERE status='failed'").get().n,
   interrupted:db.prepare("SELECT COUNT(*) AS n FROM agent_jobs WHERE status='interrupted'").get().n,
