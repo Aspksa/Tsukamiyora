@@ -5,7 +5,9 @@ export function classifyCloudError(status){
  return ({400:'Неверные параметры запроса',401:'Неверный или просроченный API-ключ',403:'Нет доступа к Foundation Models или модели',404:'Модель или адрес API не найден',409:'Модель недоступна',429:'Превышен лимит запросов',500:'Ошибка сервера Cloud.ru',502:'Ошибка шлюза',503:'Сервис временно недоступен',504:'Тайм-аут шлюза'})[status]||'Ошибка Cloud.ru';
 }
 export class CloudRu {
- constructor({root=process.cwd(),fetchImpl=fetch}={}){this.path=join(root,'data','cloudru-settings.json');this.fetchImpl=fetchImpl;this.last={status:'not_checked',checkedAt:null};}
+ constructor({root=process.cwd(),fetchImpl=fetch}={}){this.path=join(root,'data','cloudru-settings.json');this.fetchImpl=fetchImpl;this.last={status:'not_checked',checkedAt:null};this.usage={requests:0,succeeded:0,failed:0,promptTokens:0,completionTokens:0,unreportedResponses:0};}
+ usageMetrics(){return {...this.usage};}
+ recordUsage(body){const usage=body?.usage;if(usage&&Number.isSafeInteger(usage.prompt_tokens)&&usage.prompt_tokens>=0&&Number.isSafeInteger(usage.completion_tokens)&&usage.completion_tokens>=0){this.usage.promptTokens+=usage.prompt_tokens;this.usage.completionTokens+=usage.completion_tokens;}else this.usage.unreportedResponses++;}
  read(){
   if(!existsSync(this.path))return {enabled:false,apiKey:'',model:''};
   const data=JSON.parse(readFileSync(this.path,'utf8'));
@@ -25,11 +27,13 @@ export class CloudRu {
  }
  async request(path,{method='GET',body,timeout=12000}={}){
   const settings=this.read();if(!settings.enabled||!settings.apiKey)throw Object.assign(new Error('Cloud.ru не настроен или выключен'),{status:400});
+  this.usage.requests++;
   let response;
   try{response=await this.fetchImpl(BASE+path,{method,headers:{Authorization:'Bearer '+settings.apiKey,...(body?{'Content-Type':'application/json'}:{})},body:body?JSON.stringify(body):undefined,signal:AbortSignal.timeout(timeout)});}
-  catch(e){throw Object.assign(new Error(e.name==='TimeoutError'?'Превышено время ожидания Cloud.ru':'Нет соединения с Cloud.ru'),{status:503});}
-  if(!response.ok)throw Object.assign(new Error(classifyCloudError(response.status)),{status:response.status});
-  return response.json();
+  catch(e){this.usage.failed++;throw Object.assign(new Error(e.name==='TimeoutError'?'Превышено время ожидания Cloud.ru':'Нет соединения с Cloud.ru'),{status:503});}
+  if(!response.ok){this.usage.failed++;throw Object.assign(new Error(classifyCloudError(response.status)),{status:response.status});}
+  try{const result=await response.json();this.usage.succeeded++;this.recordUsage(result);return result;}
+  catch(e){this.usage.failed++;throw e;}
  }
  async models(){
   try{
@@ -49,11 +53,12 @@ export class CloudRu {
   const {model,enabled,apiKey}=this.read();
   if(!enabled||!apiKey||!model)throw Object.assign(new Error('Cloud.ru не настроен'),{status:400});
   if(!Array.isArray(messages)||messages.length<1||messages.length>30||!messages.every(m=>['user','assistant','system'].includes(m.role)&&typeof m.content==='string'&&m.content.length<=16000))throw Object.assign(new Error('Invalid messages'),{status:400});
+  this.usage.requests++;
   let response;
   try{response=await this.fetchImpl(BASE+'/chat/completions',{method:'POST',headers:{Authorization:'Bearer '+apiKey,'Content-Type':'application/json'},body:JSON.stringify({model,messages,max_tokens:1024,stream:true}),signal:signal??AbortSignal.timeout(90000)});}
-  catch(e){throw Object.assign(new Error('Нет соединения с Cloud.ru'),{status:503});}
-  if(!response.ok)throw Object.assign(new Error(classifyCloudError(response.status)),{status:response.status});
-  if(!response.body)throw Object.assign(new Error('Пустой поток Cloud.ru'),{status:502});
+  catch(e){this.usage.failed++;throw Object.assign(new Error('Нет соединения с Cloud.ru'),{status:503});}
+  if(!response.ok){this.usage.failed++;throw Object.assign(new Error(classifyCloudError(response.status)),{status:response.status});}
+  if(!response.body){this.usage.failed++;throw Object.assign(new Error('Пустой поток Cloud.ru'),{status:502});}
   const decoder=new TextDecoder();let buffer='',finished=false;
   for await(const chunk of response.body){
    buffer+=decoder.decode(chunk,{stream:true});
@@ -71,7 +76,8 @@ export class CloudRu {
    }
    if(finished)break;
   }
-  if(!finished)throw Error('Cloud.ru stream ended unexpectedly');
+  if(!finished){this.usage.failed++;throw Error('Cloud.ru stream ended unexpectedly');}
+  this.usage.succeeded++;this.usage.unreportedResponses++;
  }
  async complete(messages){
   const {model}=this.read();if(!model)throw Object.assign(new Error('Модель не выбрана'),{status:400});
