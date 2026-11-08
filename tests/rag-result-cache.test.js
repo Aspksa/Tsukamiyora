@@ -47,3 +47,25 @@ test('semantic retrieval bypasses public lexical cache',()=>{
   assert.equal(second.cacheHit,false);
  }finally{db.close();}
 });
+
+import {createRagResultCache} from '../src/rag-result-cache.js';
+
+test('bounded cache isolates values and evicts least recently used',()=>{
+ const cache=createRagResultCache({capacity:2,ttlMs:1000});
+ const original={results:[{id:'a'}]};
+ cache.set('a',original);original.results[0].id='mutated';
+ assert.equal(cache.get('a').results[0].id,'a');
+ const copy=cache.get('a');copy.results[0].id='other';
+ assert.equal(cache.get('a').results[0].id,'a');
+ cache.set('b',2);cache.get('a');cache.set('c',3);
+ assert.equal(cache.get('b'),null);
+ cache.invalidate();assert.equal(cache.status().size,0);
+});
+
+test('bounded cache expires entries',async()=>{
+ const cache=createRagResultCache({capacity:1,ttlMs:1});
+ cache.set('x',{answer:1});
+ await new Promise(resolve=>setTimeout(resolve,10));
+ assert.equal(cache.get('x'),null);
+ assert.throws(()=>createRagResultCache({capacity:0}),/Invalid RAG cache options/);
+});
