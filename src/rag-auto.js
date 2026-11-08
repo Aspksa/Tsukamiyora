@@ -1,3 +1,4 @@
+import { sep } from 'node:path';
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { indexDirectory } from './rag-import.js';
@@ -10,7 +11,7 @@ export function loadIndexConfig(root=process.cwd()){
   writeFileSync(path,JSON.stringify(config,null,2)+'\n',{flag:'wx'});
  }
  const value=JSON.parse(readFileSync(path,'utf8'));
- if(typeof value.enabled!=='boolean'||!Array.isArray(value.folders)||value.folders.length>20||!value.folders.every(x=>typeof x==='string'&&x.length>0&&x.length<=1024)||!Number.isInteger(value.intervalMinutes)||value.intervalMinutes<1||value.intervalMinutes>1440)throw Error('Invalid RAG settings');
+ if(typeof value.enabled!=='boolean'||!Array.isArray(value.folders)||value.folders.length>20||!value.folders.every(x=>typeof x==='string'&&x.length>0&&x.length<=1024)||!Number.isInteger(value.maxFiles)||value.maxFiles<1||value.maxFiles>100000||!Number.isInteger(value.maxBytes)||value.maxBytes<1||value.maxBytes>10*1024*1024||!Number.isInteger(value.intervalMinutes)||value.intervalMinutes<1||value.intervalMinutes>1440)throw Error('Invalid RAG settings');
  return value;
 }
 export function createAutoIndexer(db,{root=process.cwd(),log=()=>{}}={}){
@@ -24,6 +25,7 @@ export function createAutoIndexer(db,{root=process.cwd(),log=()=>{}}={}){
    const results=[];
    for(const folder of cfg.folders){
     const path=resolve(root,folder);
+    if(path!==resolve(root)&&!path.startsWith(resolve(root)+sep)){results.push({folder,error:'folder outside project root'});continue;}
     if(!existsSync(path)){if(path===join(root,'data','library'))mkdirSync(path,{recursive:true});else {results.push({folder,error:'folder not found'});continue;}}
     try{results.push({folder,...indexDirectory(db,path,{maxFiles:cfg.maxFiles,maxBytes:cfg.maxBytes})});}
     catch(error){results.push({folder,error:String(error)});}
