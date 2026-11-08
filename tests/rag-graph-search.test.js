@@ -78,3 +78,16 @@ test('graph citation accepts flexible spacing in explicit relations',()=>{
   assert.ok(result.results.some(hit=>hit.graphEvidence&&hit.source_id==='file:spaced'));
  }finally{db.close();}
 });
+
+test('removing a document removes its extracted graph relations',()=>{
+ const db=new DatabaseSync(':memory:');
+ try{
+  const index=new KnowledgeIndex(db),relations=new RagRelationGraph(db);
+  index.ingest({id:'file:obsolete',title:'Obsolete',text:'Двигатель -> использует -> Масло'});
+  relations.extract({sourceId:'file:obsolete'});
+  assert.equal(db.prepare('SELECT COUNT(*) n FROM rag_extracted_relations').get().n,1);
+  assert.equal(index.removeSource('file:obsolete'),true);
+  assert.equal(db.prepare('SELECT COUNT(*) n FROM rag_extracted_relations').get().n,0);
+  assert.equal(new GraphAwareRag(index).retrieve('Двигатель').graph.edges.length,0);
+ }finally{db.close();}
+});
