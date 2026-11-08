@@ -37,11 +37,14 @@ export class NeuralRag {
    if(!current)continue;
    insert.run(row.id,this.embeddings.model,row.body_hash,JSON.stringify(vector));indexed++;
   }
-  this.db.prepare('DELETE FROM rag_neural_vectors WHERE chunk_id NOT IN (SELECT id FROM rag_chunks)').run();
+  this.db.prepare('DELETE FROM rag_neural_vectors WHERE chunk_id NOT IN (SELECT c.id FROM rag_chunks c JOIN rag_cloud_permissions p ON p.source_id=c.source_id AND p.allowed=1)').run();
   return {indexed,model:this.embeddings.model};
  }
  async search(query,{limit=5}={}){
   if(typeof query!=='string'||!query.trim()||query.length>1000||!Number.isInteger(limit)||limit<1||limit>30)throw Error('Invalid neural query');
+  // No cloud request when the user has not approved any source for neural search.
+  const permitted=this.db.prepare("SELECT 1 FROM rag_neural_vectors v JOIN rag_chunks c ON c.id=v.chunk_id AND c.body_hash=v.body_hash JOIN rag_cloud_permissions p ON p.source_id=c.source_id AND p.allowed=1 WHERE v.model=? AND substr(c.source_id,1,5)='file:' LIMIT 1").get(this.embeddings.model);
+  if(!permitted)return [];
   const vector=await this.embeddings.embed(query);
   const rows=this.db.prepare(`SELECT c.id,c.source_id,c.body,s.title,v.vector FROM rag_neural_vectors v
    JOIN rag_chunks c ON c.id=v.chunk_id AND c.body_hash=v.body_hash
