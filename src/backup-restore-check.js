@@ -2,6 +2,7 @@ import {DatabaseSync} from 'node:sqlite';
 import {existsSync,statSync} from 'node:fs';
 import {basename,join,resolve,sep} from 'node:path';
 import {realpathSync} from 'node:fs';
+import {verifySnapshotChecksum} from './backup-checksum.js';
 
 // Read-only restore preflight. Never overwrites the active database.
 export function checkRestoreCandidate({root=process.cwd(),filename}={}){
@@ -18,7 +19,9 @@ export function checkRestoreCandidate({root=process.cwd(),filename}={}){
   try{
    const integrity=db.prepare('PRAGMA integrity_check').get();
    if(Object.values(integrity)[0]!=='ok')return {filename,ready:false,reason:'integrity_failed',size};
-   return {filename,ready:true,size,requiresStoppedServer:true,restored:false};
+   const checksum=verifySnapshotChecksum(actual);
+   if(checksum.valid===false)return {filename,ready:false,reason:'checksum_mismatch',size,checksum};
+   return {filename,ready:true,size,checksum,requiresStoppedServer:true,restored:false};
   }finally{db.close();}
  }catch{return {filename,ready:false,reason:'invalid_sqlite',size};}
 }
