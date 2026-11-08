@@ -32,6 +32,12 @@ export function createAgentEvaluationDrafts(db){
   FROM agent_eval_drafts d LEFT JOIN rag_sources s ON s.id=d.source_id
   ORDER BY d.id DESC LIMIT ?`).all(limit);
  };
+ const detail=id=>{
+  if(!Number.isSafeInteger(id)||id<1)throw Error('Invalid draft id');
+  const draft=db.prepare('SELECT id,source_id,query,status FROM agent_eval_drafts WHERE id=?').get(id);
+  if(!draft)throw Error('Draft not found');
+  return draft;
+ };
  const review=({id,approve=false}={})=>{
   if(!Number.isSafeInteger(id)||id<1||typeof approve!=='boolean')throw Error('Invalid review');
   const draft=db.prepare('SELECT * FROM agent_eval_drafts WHERE id=?').get(id);
@@ -49,5 +55,5 @@ export function createAgentEvaluationDrafts(db){
   JOIN rag_sources s ON s.id=d.source_id AND s.body_hash=d.source_hash
   WHERE d.status='approved' ORDER BY d.id LIMIT ?`).all(limit);
  };
- return {generate,list,review,approved};
+ return {generate,list,detail,review,approved};
 }
