@@ -5,11 +5,11 @@ const unique=items=>[...new Set(items)];
 export class RagPipeline {
  constructor(index){this.index=index;this.intelligence=new RagIntelligence(index.db);this.stats={queries:0,hits:0,empty:0,totalMs:0};}
  rewrite(query){
-  if(typeof query!=='string'||!query.trim()||query.length>1000)throw Error('Invalid query');
+  if(typeof query!=='string'||!query.trim()||query.length>1000||!words(query).length)throw Error('Invalid query');
   return unique(words(query)).slice(0,24).join(' ');
  }
  retrieve(query,{limit=5,mode='adaptive'}={}){
-  if(!Number.isInteger(limit)||limit<1||limit>30||!['adaptive','lexical','graph','semantic','hybrid'].includes(mode))throw Error('Invalid retrieval options');
+  if(!Number.isInteger(limit)||limit<1||limit>30||!['adaptive','lexical','semantic','hybrid'].includes(mode))throw Error('Invalid retrieval options');
   const start=performance.now(),rewritten=this.rewrite(query);
   const lexical=mode==='semantic'?[]:this.index.search(rewritten,{limit:Math.min(30,limit*3)});
   const ranked=lexical.map((hit,i)=>{
