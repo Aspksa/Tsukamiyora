@@ -1,4 +1,4 @@
-import { randomUUID,createHash } from 'node:crypto';
+import { createHash } from 'node:crypto';
 import { ChatContext } from './chat-context.js';
 const digest=text=>createHash('sha256').update(text).digest('hex');
 export class ChatService {
