@@ -11,7 +11,8 @@ export async function backupDatabase(){
  const target=join(folder,`tsukamiyora-${stamp}.sqlite`);
  const tmp=target+'.partial';
  try {
-  await backup(new DatabaseSync(source),tmp);
+  const db = new DatabaseSync(source);
+  try { await backup(db,tmp); } finally { db.close(); }
   const check=new DatabaseSync(tmp);
   try { const integrity=check.prepare('PRAGMA integrity_check').get(); if(Object.values(integrity)[0]!=='ok')throw Error('Backup integrity check failed'); }
   finally { check.close(); }
@@ -21,6 +22,6 @@ export async function backupDatabase(){
  for(const old of files.slice(10)) unlinkSync(join(folder,old));
  return target;
 }
-if(process.argv[1] && import.meta.url===new URL('file://'+process.argv[1].replace(/\\/g,'/')).href){
+if(process.argv.includes('--run-backup')){
  backupDatabase().then(console.log).catch(e=>{console.error(e);process.exitCode=1;});
 }
