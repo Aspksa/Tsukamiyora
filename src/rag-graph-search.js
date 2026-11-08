@@ -21,12 +21,26 @@ export class GraphAwareRag {
    }
   }
   const seen=new Map(),results=[];
-  for(const hit of [...lexical.results,...citations]){
+  // Reserve space for grounded graph evidence when lexical hits fill the limit.
+  // Lexical hits retain priority, but a second-hop source must remain discoverable.
+  const graphOnly=citations.filter(hit=>!lexical.results.some(item=>item.id===hit.id));
+  const lexicalSlots=graphOnly.length?Math.max(0,limit-1):limit;
+  for(const hit of lexical.results.slice(0,lexicalSlots)){
+   if(!this.pipeline.verifyCitation(hit.citation)||seen.has(hit.id))continue;
+   const item={...hit};seen.set(hit.id,item);results.push(item);
+  }
+  for(const hit of citations){
    if(!this.pipeline.verifyCitation(hit.citation))continue;
    const existing=seen.get(hit.id);
-   if(existing){if(hit.graphEvidence)existing.graphEvidence=true;continue;}
+   if(existing){existing.graphEvidence=true;continue;}
    if(results.length>=limit)continue;
    const item={...hit};seen.set(hit.id,item);results.push(item);
+  }
+  for(const hit of lexical.results.slice(lexicalSlots)){
+   if(results.length>=limit)break;
+   if(!seen.has(hit.id)&&this.pipeline.verifyCitation(hit.citation)){
+    const item={...hit};seen.set(hit.id,item);results.push(item);
+   }
   }
   return {query,results,graph:{nodes:graph.nodes,edges:graph.edges},needsReview:!results.length,remoteCalls:0};
  }
