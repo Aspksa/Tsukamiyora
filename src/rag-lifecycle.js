@@ -14,6 +14,8 @@ export class KnowledgeLifecycle {
   // Never extract private chat messages into shared fact tables.
   if(sourceId.startsWith('chat:'))throw Error('Private chat extraction forbidden');
   const chunks=this.db.prepare('SELECT id,body FROM rag_chunks WHERE source_id=? ORDER BY position LIMIT ?').all(sourceId,limit);
+  const total=this.db.prepare('SELECT COUNT(*) AS n FROM rag_chunks WHERE source_id=?').get(sourceId).n;
+  if(total>limit)throw Error('Extraction would be partial; increase limit');
   const add=this.db.prepare('INSERT OR IGNORE INTO rag_evidence(source_id,chunk_id,subject,predicate,value,confidence) VALUES(?,?,?,?,?,?)');
   const fact=this.db.prepare('INSERT OR IGNORE INTO rag_facts(subject,predicate,value,source_id) VALUES(?,?,?,?)');
   const history=this.db.prepare('INSERT INTO rag_fact_history(subject,predicate,value,source_id) VALUES(?,?,?,?)');
@@ -22,6 +24,7 @@ export class KnowledgeLifecycle {
   try{
    // Replace extracted evidence for changed/deleted chunks, without touching manual facts.
    this.db.prepare('DELETE FROM rag_evidence WHERE source_id=?').run(sourceId);
+   this.db.prepare('DELETE FROM rag_facts WHERE source_id=? AND predicate=?').run(sourceId,'значение');
    for(const chunk of chunks){
     for(const line of chunk.body.split(/\r?\n/)){
      const match=/^\s*([^:=\n]{2,100})\s*[:=]\s*([^\n]{1,300})\s*$/.exec(line);
