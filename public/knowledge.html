@@ -16,6 +16,7 @@ a{color:#dfc58b} .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax
 <section><h2>Фоновая индексация</h2><pre id="indexer">Загрузка…</pre></section>
 <section><h2>Хранитель знаний</h2><pre id="guardian">Загрузка…</pre></section>
 </div>
+<section><h2>Диагностика агентов</h2><pre id="agentDiagnostics">Загрузка…</pre><small>Предупреждения без автоматического изменения настроек или знаний.</small></section>
 <section><h2>Cloud.ru — запросы и токены</h2><pre id="cloudUsage">Загрузка…</pre><small>Счётчики с запуска сервера; токены учитываются только при наличии данных провайдера. Потоковые ответы могут не сообщать расход.</small></section>
 <section><h2>Активность агентов</h2><pre id="agentActivity">Загрузка…</pre></section>
 <section><h2>Резервные копии</h2><pre id="backups">Загрузка…</pre></section>
@@ -24,7 +25,7 @@ a{color:#dfc58b} .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax
 <section><h2>Журнал решений агентов</h2><pre id="reviews">Загрузка…</pre></section>
 <script>
 async function refresh(){
- const endpoints=[['cloudUsage','/api/cloud/usage'],['agentActivity','/api/rag/agents/coordinator/activity?limit=20'],['indexer','/api/rag/indexer/status'],['guardian','/api/rag/guardian/status'],['history','/api/rag/guardian/history?limit=15'],['reviews','/api/rag/agents/experience/reviews?limit=20'],['backups','/api/system/backups?limit=10']];
+ const endpoints=[['agentDiagnostics','/api/rag/agents/coordinator/diagnostics'],['cloudUsage','/api/cloud/usage'],['agentActivity','/api/rag/agents/coordinator/activity?limit=20'],['indexer','/api/rag/indexer/status'],['guardian','/api/rag/guardian/status'],['history','/api/rag/guardian/history?limit=15'],['reviews','/api/rag/agents/experience/reviews?limit=20'],['backups','/api/system/backups?limit=10']];
  await Promise.all(endpoints.map(async([id,url])=>{
   const target=document.getElementById(id);
   try{const response=await fetch(url,{cache:'no-store'});if(!response.ok)throw Error('HTTP '+response.status);
