@@ -36,6 +36,11 @@ mkdirSync('logs',{recursive:true});
 const log=(message)=>appendFileSync('logs/core.jsonl',JSON.stringify({at:new Date().toISOString(),message})+'\n');
 const autoIndex=createAutoIndexer(db,{log});
 app.addHook('onRequest',async(req,reply)=>{
+ const host=req.headers.host;
+ const expectedPort=String(process.env.TSUKAMIYORA_PORT||4177);
+ if(typeof host!=='string'||!['127.0.0.1:'+expectedPort,'localhost:'+expectedPort].includes(host.toLowerCase())){
+  reply.code(403);return reply.send({error:'forbidden_host'});
+ }
  if(req.method!=='GET'&&req.method!=='HEAD'){
   const origin=req.headers.origin;
   if(origin){
