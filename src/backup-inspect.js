@@ -6,7 +6,7 @@ export function inspectBackups({root=process.cwd(),limit=10}={}){
  if(typeof root!=='string'||!root.trim()||!Number.isInteger(limit)||limit<1||limit>100)throw Error('Invalid backup inspection options');
  const folder=join(resolve(root),'data','backups');
  if(!existsSync(folder))return [];
- return readdirSync(folder).filter(name=>/^tsukamiyora-[0-9T-]+\.sqlite$/.test(name))
+ return readdirSync(folder).filter(name=>/^tsukamiyora-\d{4}-\d{2}-\d{2}T\d{2}-\d{2}-\d{2}-\d{3}Z\.sqlite$/.test(name))
   .sort().reverse().slice(0,limit).map(name=>{
    const path=join(folder,name);
    try{
