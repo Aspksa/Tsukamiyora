@@ -10,7 +10,7 @@ test('coordinator never approves agent lessons and rejects stale evidence',()=>{
   const rag=new KnowledgeIndex(db);
   rag.ingest({id:'file:guide',title:'Guide',text:'Initial knowledge'});
   const agents=createRagAgentCoordinator(db);
-  assert.equal(agents.roles.length,8);
+  assert.equal(agents.roles.length,30);
   const proposal=agents.submitLesson({role:'researcher',taskKey:'guide',lesson:'Use the guide',sourceId:'file:guide'});
   assert.equal(proposal.status,'pending');
   assert.equal(agents.auditPending().stale,0);
