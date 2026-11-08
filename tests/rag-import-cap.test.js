@@ -14,9 +14,13 @@ test('capped scans never remove previously indexed documents',()=>{
   writeFileSync(join(root,'b.md'),'Second document');
   assert.equal(indexDirectory(db,root,{maxFiles:10}).changed,2);
   unlinkSync(join(root,'a.md'));
-  assert.equal(indexDirectory(db,root,{maxFiles:1}).removed,0);
+  const partial=indexDirectory(db,root,{maxFiles:1});
+  assert.equal(partial.removed,0);
+  assert.equal(partial.complete,false);
   assert.equal(db.prepare('SELECT COUNT(*) n FROM rag_sources').get().n,2);
-  assert.equal(indexDirectory(db,root,{maxFiles:10}).removed,1);
+  const full=indexDirectory(db,root,{maxFiles:10});
+  assert.equal(full.removed,1);
+  assert.equal(full.complete,true);
   assert.equal(db.prepare('SELECT COUNT(*) n FROM rag_sources').get().n,1);
  }finally{db.close();rmSync(root,{recursive:true,force:true});}
 });
