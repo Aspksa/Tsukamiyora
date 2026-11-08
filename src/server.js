@@ -84,7 +84,7 @@ app.get('/api/rag/semantic/search',async(req,reply)=>{try{return {results:ragInt
 // Neural search is opt-in: a model must be explicitly supplied per request.
 const neuralByModel=new Map();
 const neural=model=>{
- if(typeof model!=='string'||!model.trim()||model.length>256||!/^[\\w./:-]+$/.test(model))throw Error('Invalid embedding model');
+ if(typeof model!=='string'||!model.trim()||model.length>256||!/^[\w./:-]+$/.test(model))throw Error('Invalid embedding model');
  if(!neuralByModel.has(model))neuralByModel.set(model,new NeuralRag(db,cloud,{model}));
  return neuralByModel.get(model);
 };
