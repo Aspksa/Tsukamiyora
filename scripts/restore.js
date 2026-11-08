@@ -9,13 +9,12 @@ const source=resolve(candidate);
 if(!source.startsWith(folder+'\\') && !source.startsWith(folder+'/')){console.error('Backup must be inside data/backups');process.exit(2);}
 if(!existsSync(source)){console.error('Backup missing');process.exit(2);}
 const dest=join(root,'data','tsukamiyora.sqlite');
+if(existsSync(dest+'-wal') || existsSync(dest+'-shm')) { console.error('SQLite WAL/SHM files exist. Stop all Tsukamiyora processes and retry; do not delete these files manually.'); process.exit(2); }
 function check(path){const db=new DatabaseSync(path);try{const value=Object.values(db.prepare('PRAGMA integrity_check').get())[0];if(value!=='ok')throw Error('SQLite integrity check failed');}finally{db.close();}}
 try {
  check(source);
  mkdirSync(join(root,'data'),{recursive:true});
  if(existsSync(dest)){
-  const db=new DatabaseSync(dest);
-  try{db.exec('PRAGMA wal_checkpoint(TRUNCATE)');}finally{db.close();}
   copyFileSync(dest,join(folder,'pre-restore-'+Date.now()+'.sqlite'));
  }
  copyFileSync(source,dest);
