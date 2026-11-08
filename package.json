@@ -11,6 +11,7 @@
     "test": "node --test",
     "diagnose": "node scripts/diagnose.js",
     "backup": "node src/backup.js --run-backup",
+    "backup:check": "node src/backup-inspect.js --inspect-backups",
     "verify": "node scripts/verify.js",
     "test:core": "node --test tests/*.test.js",
     "rag:index": "node scripts/rag-index.js"
