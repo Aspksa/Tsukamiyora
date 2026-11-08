@@ -56,6 +56,7 @@ test('indexer refuses symlinked folders outside project',()=>{
   writeFileSync(join(outside,'secret.md'),'Sensitive external document');
   symlinkSync(outside,join(root,'data','external'),'dir');
   writeFileSync(join(root,'data','rag-settings.json'),JSON.stringify({enabled:true,folders:['data/external'],intervalMinutes:30,maxFiles:20,maxBytes:10000}));
+  new KnowledgeIndex(db);
   const result=createAutoIndexer(db,{root}).run();
   assert.match(result.results[0].error,/outside project root/);
   assert.equal(db.prepare('SELECT COUNT(*) n FROM rag_sources').get().n,0);
