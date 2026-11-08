@@ -43,3 +43,7 @@ The local server now exposes:
 - `POST /api/rag/agents/coordinator/lessons`: create a source-grounded, pending lesson; never auto-approve.
 
 The evidence audit runs once after successful server startup and then every 30 minutes. The timer is cleared on shutdown. All operations are local and require no Cloud.ru calls. The audit only rejects **pending** lessons whose evidence changed; it never deletes source documents or promotes unreviewed lessons.
+
+## Agent observability milestone
+
+Agent activity is now recorded in the local SQLite `rag_agent_activity` table and exposed via `GET /api/rag/agents/coordinator/activity?limit=30`. The knowledge dashboard shows the most recent events. Events record role, action, outcome, count and elapsed milliseconds; no private document bodies or Cloud.ru keys are logged. The audit queue is bounded, and evidence rejection remains transactional. These are local operational measurements, not proof of autonomous agent reasoning or Cloud.ru cost savings.
