@@ -63,9 +63,9 @@ try {
     if ($npmCommand) { $npm = $npmCommand.Source }
     else { throw 'npm.cmd missing; install full Node.js distribution' }
   }
-  if (-not (Test-Path -LiteralPath (Join-Path $root 'node_modules\\fastify'))) {
+  if ((-not (Test-Path -LiteralPath (Join-Path $root 'node_modules\\fastify'))) -or (-not (Test-Path -LiteralPath (Join-Path $root 'node_modules\\@fastify\\websocket')))) {
     Log 'Installing npm dependencies'
-    & $npm install --no-audit --no-fund --prefix $root
+    & $npm install --no-audit --no-fund --ignore-scripts --prefix $root
     if ($LASTEXITCODE -ne 0) { throw 'npm install failed' }
   }
   $port = 4177
