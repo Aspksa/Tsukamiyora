@@ -2,27 +2,65 @@ import { spawn } from 'node:child_process';
 import { appendFileSync, mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { backupDatabase } from './backup.js';
-mkdirSync('logs',{recursive:true});
-let child, stopping=false, attempts=0, timer;
-const log = (message) => { const line=JSON.stringify({time:new Date().toISOString(),component:'supervisor',message})+'\n'; appendFileSync(join('logs','supervisor.jsonl'),line); console.log(message); };
-async function backup() { try { const result=await backupDatabase(); log('Backup '+result); } catch(e) { log('Backup failed: '+String(e)); } }
-function start() {
- if(stopping) return;
- child=spawn(process.execPath,[join(process.cwd(),'src','server.js')],{cwd:process.cwd(),env:process.env,stdio:'inherit'});
- const started=Date.now();
- child.once('exit',(code,signal)=>{
-  child=null;
-  if(stopping) return;
-  if(Date.now()-started>60000) attempts=0;
-  attempts++;
-  if(attempts>5){ log('Restart limit reached; manual intervention required'); process.exitCode=1; return; }
-  const delay=Math.min(30000,1000*2**(attempts-1));
-  log(`Server exited (code=${code}, signal=${signal}); restarting in ${delay}ms`);
-  timer=setTimeout(start,delay);
- });
- child.once('error',error=>log('Spawn error: '+String(error)));
+
+mkdirSync('logs', { recursive: true });
+let child = null;
+let stopping = false;
+let attempts = 0;
+let restartTimer = null;
+let backupBusy = false;
+const log = message => {
+  const line = JSON.stringify({ at: new Date().toISOString(), component: 'supervisor', message }) + '\n';
+  try { appendFileSync(join('logs', 'supervisor.jsonl'), line); } catch { console.error(line); }
+  console.log(message);
+};
+async function makeBackup() {
+  if (backupBusy || stopping) return;
+  backupBusy = true;
+  try { log('Backup: ' + await backupDatabase()); }
+  catch (error) { log('Backup failed: ' + String(error)); }
+  finally { backupBusy = false; }
 }
-function stop(){stopping=true;clearTimeout(timer);clearInterval(backupTimer);if(child)child.kill();else process.exit(0);}
-process.on('SIGINT',stop);process.on('SIGTERM',stop);
-const backupTimer=setInterval(backup,5*60*60*1000);
-backup().finally(start);
+function launch() {
+  if (stopping) return;
+  const started = Date.now();
+  const proc = spawn(process.execPath, [join(process.cwd(), 'src', 'server.js')], {
+    cwd: process.cwd(), env: process.env, stdio: 'inherit'
+  });
+  child = proc;
+  let settled = false;
+  const onExit = (code, signal) => {
+    if (settled) return;
+    settled = true;
+    if (child === proc) child = null;
+    if (stopping) { process.exitCode = 0; return; }
+    if (Date.now() - started >= 60000) attempts = 0;
+    attempts++;
+    if (attempts > 5) {
+      log('Restart limit reached; inspect logs before restarting');
+      process.exitCode = 1;
+      clearInterval(backupTimer);
+      return;
+    }
+    const delay = Math.min(30000, 1000 * 2 ** (attempts - 1));
+    log(`Server stopped (code=${code}, signal=${signal}); retry in ${delay}ms`);
+    restartTimer = setTimeout(launch, delay);
+  };
+  proc.once('error', error => { log('Spawn error: ' + String(error)); onExit(1, 'spawn-error'); });
+  proc.once('exit', onExit);
+}
+function stop() {
+  if (stopping) return;
+  stopping = true;
+  clearTimeout(restartTimer);
+  clearInterval(backupTimer);
+  if (child && !child.killed) {
+    child.kill();
+    setTimeout(() => { if (child) child.kill('SIGKILL'); }, 5000).unref();
+  }
+}
+process.on('SIGINT', stop);
+process.on('SIGTERM', stop);
+const backupTimer = setInterval(makeBackup, 5 * 60 * 60 * 1000);
+launch();
+makeBackup();
