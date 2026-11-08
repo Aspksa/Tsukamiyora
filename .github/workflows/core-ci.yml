@@ -16,3 +16,19 @@ jobs:
           node-version: '22'
       - run: node --test
       - run: node scripts/diagnose.js
+      - name: Windows BAT launcher smoke test
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $env:TSUKAMIYORA_PORT = '4199'
+          try {
+            & cmd.exe /c 'Tsukamiyora.bat'
+            if ($LASTEXITCODE -ne 0) { throw "BAT exited with $LASTEXITCODE" }
+            $response = Invoke-RestMethod 'http://127.0.0.1:4199/health' -TimeoutSec 5
+            if ($response.status -ne 'ok' -or $response.database -ne 'ok') { throw 'Health check failed' }
+            & cmd.exe /c 'Tsukamiyora.bat'
+            if ($LASTEXITCODE -ne 0) { throw 'Second launch failed' }
+          } finally {
+            $connections = Get-NetTCPConnection -LocalPort 4199 -State Listen -ErrorAction SilentlyContinue
+            $connections | ForEach-Object { Stop-Process -Id $_.OwningProcess -Force -ErrorAction SilentlyContinue }
+          }
