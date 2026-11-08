@@ -3,7 +3,7 @@ import { RagIntelligence } from './rag-intelligence.js';
 const words=text=>(text.toLocaleLowerCase('ru').match(/[\p{L}\p{N}]{2,}/gu)||[]);
 const unique=items=>[...new Set(items)];
 export class RagPipeline {
- constructor(index){this.index=index;this.intelligence=new RagIntelligence(index.db);this.stats={queries:0,hits:0,empty:0,totalMs:0,semanticFallbacks:0,verifiedCitations:0};}
+ constructor(index){this.index=index;this.intelligence=new RagIntelligence(index.db);this.stats={queries:0,hits:0,empty:0,totalMs:0,semanticFallbacks:0,verifiedCitations:0,correctivePasses:0};}
  rewrite(query){
   if(typeof query!=='string'||!query.trim()||query.length>1000||!words(query).length)throw Error('Invalid query');
   return unique(words(query)).slice(0,24).join(' ');
@@ -12,7 +12,18 @@ export class RagPipeline {
   if(!Number.isInteger(limit)||limit<1||limit>30||!['adaptive','lexical','semantic','hybrid'].includes(mode))throw Error('Invalid retrieval options');
   const start=performance.now(),rewritten=this.rewrite(query);
   const allowed=allowedChatSourceIds instanceof Set?allowedChatSourceIds:new Set();
-  const lexical=(mode==='semantic'?[]:this.index.search(rewritten,{limit:Math.min(30,limit*5),allowedChatSourceIds:allowed}));
+  let lexical=(mode==='semantic'?[]:this.index.search(rewritten,{limit:Math.min(30,limit*5),allowedChatSourceIds:allowed}));
+  // Corrective lexical pass: long queries can be over-specific. Retry with
+  // individual high-signal terms and deduplicate by chunk ID, without an LLM.
+  if(mode==='adaptive'&&lexical.length===0){
+   this.stats.correctivePasses++;
+   const candidates=unique(words(query)).sort((a,b)=>b.length-a.length).slice(0,5);
+   const merged=new Map();
+   for(const term of candidates){
+    for(const hit of this.index.search(term,{limit:Math.min(30,limit*3),allowedChatSourceIds:allowed}))if(!merged.has(hit.id))merged.set(hit.id,hit);
+   }
+   lexical=[...merged.values()].slice(0,Math.min(30,limit*5));
+  }
   const ranked=lexical.map((hit,i)=>{
    const terms=unique(words(query)),body=new Set(words(hit.body));
    const coverage=terms.length?terms.filter(t=>body.has(t)).length/terms.length:0;
