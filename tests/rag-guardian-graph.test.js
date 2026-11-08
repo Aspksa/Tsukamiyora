@@ -42,3 +42,19 @@ test('guardian reports conflicts without deleting or modifying evidence',()=>{
   assert.equal(db.prepare('SELECT COUNT(*) n FROM rag_evidence').get().n,before);
  }finally{db.close();}
 });
+
+test('guardian reports a positive count for source-updated evidence',()=>{
+ const db=new DatabaseSync(':memory:');
+ try{
+  const index=new KnowledgeIndex(db),lifecycle=new KnowledgeLifecycle(db);
+  new RagTopicGraph(db);
+  index.ingest({id:'file:manual',title:'Manual',text:'Масло: 5W30'});
+  lifecycle.extract({sourceId:'file:manual'});
+  db.prepare("UPDATE rag_sources SET updated_at='2099-01-01 00:00:00' WHERE id='file:manual'").run();
+  const report=new RagKnowledgeGuardian(db).inspect();
+  const stale=report.actions.find(x=>x.kind==='review-stale-evidence');
+  assert.ok(stale);
+  assert.ok(stale.count>0);
+  assert.equal(stale.requiresApproval,true);
+ }finally{db.close();}
+});
