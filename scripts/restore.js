@@ -1,23 +1,35 @@
 import { DatabaseSync } from 'node:sqlite';
-import { existsSync, copyFileSync, mkdirSync } from 'node:fs';
-import { join, resolve, basename } from 'node:path';
-const root=process.cwd();
-const candidate=process.argv[2];
-if(!candidate){console.error('Usage: node scripts/restore.js <backup.sqlite> (stop Tsukamiyora first)');process.exit(2);}
-const folder=resolve(root,'data','backups');
-const source=resolve(candidate);
-if(!source.startsWith(folder+'\\') && !source.startsWith(folder+'/')){console.error('Backup must be inside data/backups');process.exit(2);}
-if(!existsSync(source)){console.error('Backup missing');process.exit(2);}
-const dest=join(root,'data','tsukamiyora.sqlite');
-if(existsSync(dest+'-wal') || existsSync(dest+'-shm')) { console.error('SQLite WAL/SHM files exist. Stop all Tsukamiyora processes and retry; do not delete these files manually.'); process.exit(2); }
-function check(path){const db=new DatabaseSync(path);try{const value=Object.values(db.prepare('PRAGMA integrity_check').get())[0];if(value!=='ok')throw Error('SQLite integrity check failed');}finally{db.close();}}
-try {
- check(source);
- mkdirSync(join(root,'data'),{recursive:true});
- if(existsSync(dest)){
-  copyFileSync(dest,join(folder,'pre-restore-'+Date.now()+'.sqlite'));
+import { existsSync, copyFileSync, mkdirSync, renameSync, unlinkSync, realpathSync } from 'node:fs';
+import { join, resolve, relative, isAbsolute, basename } from 'node:path';
+
+export function restoreDatabase(backupPath,{root=process.cwd()}={}) {
+ const folder=resolve(root,'data','backups');
+ const source=resolve(backupPath);
+ const rel=relative(folder,source);
+ if(!rel||rel==='..'||rel.startsWith('..'+requireSeparator())||isAbsolute(rel))throw Error('Backup must be inside data/backups');
+ if(!existsSync(source))throw Error('Backup missing');
+ if(!realpathSync(source).startsWith(realpathSync(folder)+requireSeparator()))throw Error('Backup symlink escapes backups directory');
+ const data=join(root,'data');
+ const dest=join(data,'tsukamiyora.sqlite');
+ if(existsSync(dest+'-wal')||existsSync(dest+'-shm'))throw Error('WAL/SHM present: stop all database users before restoring');
+ function check(path) {
+  const db=new DatabaseSync(path,{readOnly:true});
+  try{if(db.prepare('PRAGMA integrity_check').get().integrity_check!=='ok')throw Error('SQLite integrity check failed');}
+  finally{db.close();}
  }
- copyFileSync(source,dest);
- check(dest);
- console.log('Restored '+basename(source)+'. Restart Tsukamiyora.');
-} catch(error){console.error('Restore failed:',error.message);process.exitCode=1;}
+ check(source);
+ mkdirSync(data,{recursive:true});
+ const staged=dest+'.restore-'+process.pid+'.tmp';
+ try{
+  copyFileSync(source,staged);
+  check(staged);
+  if(existsSync(dest))copyFileSync(dest,join(folder,'pre-restore-'+Date.now()+'.sqlite'));
+  renameSync(staged,dest);
+ }finally{if(existsSync(staged))unlinkSync(staged);}
+ return dest;
+}
+function requireSeparator(){return process.platform==='win32'?'\\':'/';}
+if(process.argv[1]&&resolve(process.argv[1])===new URL(import.meta.url).pathname.replace(/^\/(?=[A-Za-z]:)/,'')){
+ try{if(!process.argv[2])throw Error('Usage: node scripts/restore.js <backup.sqlite> (stop app first)');console.log('Restored to '+restoreDatabase(process.argv[2]));}
+ catch(error){console.error(error.message);process.exitCode=1;}
+}
