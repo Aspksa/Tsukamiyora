@@ -26,6 +26,7 @@ import { planRag } from './rag-planner.js';
 import { RagKnowledgeGaps } from './rag-knowledge-gaps.js';
 import { RagGraphTraversal } from './rag-graph-traversal.js';
 import { RagKnowledgeGuardian } from './rag-guardian.js';
+import { createGuardianScheduler } from './rag-guardian-scheduler.js';
 import { evaluateRag, compareRag } from './rag-evaluation.js';
 import { createAutoIndexer } from './rag-auto.js';
 import { tasks, metrics, modules, events } from './runtime.js';
@@ -57,6 +58,7 @@ const chatService=new ChatService(db,cloud);
 mkdirSync('logs',{recursive:true});
 const log=(message)=>appendFileSync('logs/core.jsonl',JSON.stringify({at:new Date().toISOString(),message})+'\n');
 const autoIndex=createAutoIndexer(db,{log});
+const guardianScheduler=createGuardianScheduler(db,{log});
 app.addHook('onRequest',async(req,reply)=>{
  const host=req.headers.host;
  const expectedPort=String(process.env.TSUKAMIYORA_PORT||4177);
@@ -150,6 +152,7 @@ app.get('/api/rag/relations',async(req,reply)=>{try{return {relations:relationGr
 app.get('/api/rag/knowledge/review',async(req,reply)=>{try{return {groups:ragFactReview.inspect({limit:Number(req.query?.limit??100),staleDays:Number(req.query?.staleDays??90)})};}catch(e){reply.code(400);return {error:e.message};}});
 app.post('/api/rag/knowledge/gaps',async(req,reply)=>{try{return ragKnowledgeGaps.inspect(req.body?.queries,{limit:req.body?.limit??20});}catch(e){reply.code(400);return {error:e.message};}});
 app.post('/api/rag/plan',async(req,reply)=>{try{return planRag(req.body?.query,{maxSteps:req.body?.maxSteps??4});}catch(e){reply.code(400);return {error:e.message};}});
+app.get('/api/rag/guardian/status',async()=>guardianScheduler.status());
 app.get('/api/rag/guardian',async(req,reply)=>{try{return ragGuardian.inspect({limit:Number(req.query?.limit??50),staleDays:Number(req.query?.staleDays??90)});}catch(e){reply.code(400);return {error:e.message};}});
 app.get('/api/rag/graph/traverse',async(req,reply)=>{try{return ragGraphTraversal.traverse(req.query?.entity,{maxHops:Number(req.query?.maxHops??2),limit:Number(req.query?.limit??30)});}catch(e){reply.code(400);return {error:e.message};}});
 app.get('/api/rag/audit',async(req,reply)=>{try{return knowledgeAudit.inspect({limit:Number(req.query?.limit??100),staleDays:Number(req.query?.staleDays??90)});}catch(e){reply.code(400);return {error:e.message};}});
@@ -215,6 +218,6 @@ app.get('/ws',{websocket:true},(socket)=>{
 const port=Number(process.env.TSUKAMIYORA_PORT||4177);
 if(!Number.isInteger(port)||port<1||port>65535)throw Error('Invalid port');
 let stopping=false;
-async function stop(){if(stopping)return;stopping=true;try{autoIndex.stop();tasks.close();await app.close();db.close();}catch(e){log(String(e));process.exitCode=1;}}
+async function stop(){if(stopping)return;stopping=true;try{autoIndex.stop();guardianScheduler.stop();tasks.close();await app.close();db.close();}catch(e){log(String(e));process.exitCode=1;}}
 process.on('SIGINT',stop);process.on('SIGTERM',stop);
-try{await app.listen({host:'127.0.0.1',port});log('Listening on '+port);autoIndex.start();}catch(e){log(String(e));console.error(e);process.exitCode=1;await stop();}
+try{await app.listen({host:'127.0.0.1',port});log('Listening on '+port);autoIndex.start();guardianScheduler.start();}catch(e){log(String(e));console.error(e);process.exitCode=1;await stop();}
