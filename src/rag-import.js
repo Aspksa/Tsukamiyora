@@ -3,11 +3,12 @@ import { join, relative, extname, resolve, sep } from 'node:path';
 import { createHash } from 'node:crypto';
 import { KnowledgeIndex } from './rag.js';
 import { RagTopicGraph } from './rag-topic-graph.js';
+import { RagRelationGraph } from './rag-relations.js';
 const TYPES=new Set(['.txt','.md','.markdown','.json','.csv','.log']);
 export function indexDirectory(db,folder,{maxFiles=2000,maxBytes=1024*1024}={}){
  if(!Number.isInteger(maxFiles)||maxFiles<1||maxFiles>100000||!Number.isInteger(maxBytes)||maxBytes<1||maxBytes>10*1024*1024)throw Error('Invalid limits');
  const root=realpathSync(resolve(folder));if(!statSync(root).isDirectory())throw Error('Not a directory');
- const rag=new KnowledgeIndex(db),topics=new RagTopicGraph(db),pending=[root],seen=new Set();let scanned=0,changed=0,skipped=0,removed=0,truncated=false;
+ const rag=new KnowledgeIndex(db),topics=new RagTopicGraph(db),relations=new RagRelationGraph(db),pending=[root],seen=new Set();let scanned=0,changed=0,skipped=0,removed=0,truncated=false;
  while(pending.length&&scanned<maxFiles){
   const dir=pending.pop();
   let entries;
@@ -26,7 +27,7 @@ export function indexDirectory(db,folder,{maxFiles=2000,maxBytes=1024*1024}={}){
     const id='file:'+createHash('sha256').update(root+'\0'+rel).digest('hex');
     const result=rag.ingest({id,title:rel,text:readFileSync(path,'utf8')});
     seen.add(id);
-    if(result.changed){topics.rebuild({sourceId:id});changed++;}
+    if(result.changed){topics.rebuild({sourceId:id});relations.extract({sourceId:id});changed++;}
    }catch{skipped++;}
   }
  }
