@@ -19,6 +19,8 @@ test('multilingual retrieval finds English document from Russian query and keeps
   index.ingest({id:'chat:hidden',title:'Hidden',text:'engine oil secret'});
   const result=new RagPipeline(index).retrieve('двигатель масло',{mode:'lexical'});
   assert.ok(result.results.some(r=>r.source_id==='file:engine'));
+  assert.ok(result.results[0].rerankScore>0);
+  assert.equal(result.needsReview,false);
   assert.ok(result.results.every(r=>!r.source_id.startsWith('chat:')));
  }finally{db.close();}
 });
