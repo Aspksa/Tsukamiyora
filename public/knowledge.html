@@ -31,6 +31,13 @@ async function refresh(){
  await loadPending();
  document.getElementById('updated').textContent=' Последнее обновление: '+new Date().toLocaleTimeString('ru-RU');
 }
+async function loadReviews(){
+ const target=document.getElementById('reviews');
+ try{const response=await fetch('/api/rag/agents/experience/reviews?limit=20',{cache:'no-store'});
+  if(!response.ok)throw Error('HTTP '+response.status);
+  target.textContent=JSON.stringify((await response.json()).items,null,2);
+ }catch(error){target.textContent='Ошибка: '+error.message;}
+}
 async function loadPending(){
  const target=document.getElementById('pending');target.replaceChildren();
  try{
@@ -54,6 +61,7 @@ async function loadPending(){
       const result=await response.json();
       if(!response.ok||!result.updated)throw Error(result.error||'Запись не обновлена');
       await loadPending();
+      await loadReviews();
      }catch(error){alert('Ошибка проверки: '+error.message);button.disabled=false;}
     });box.append(button);
    }
