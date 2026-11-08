@@ -9,6 +9,7 @@ import { ChatContext } from './chat-context.js';
 import { CloudRu } from './cloudru.js';
 import { ChatService } from './chat-service.js';
 import { NeuralRag } from './rag-neural.js';
+import { HybridNeuralRag } from './rag-hybrid-neural.js';
 import { createAutoIndexer } from './rag-auto.js';
 import { tasks, metrics, modules, events } from './runtime.js';
 import { mkdirSync, appendFileSync, readFileSync } from 'node:fs';
@@ -90,6 +91,12 @@ const neural=model=>{
 app.post('/api/rag/neural/index',async(req,reply)=>{try{
  const engine=neural(req.body?.model);
  return await engine.sync({limit:req.body?.limit??25});
+}catch(e){reply.code(e.status||400);return {error:e.message};}});
+app.post('/api/rag/neural/hybrid',async(req,reply)=>{try{
+ const model=req.body?.model;
+ const engine=neural(model);
+ const hybrid=new HybridNeuralRag(rag,cloud,{model:engine.embeddings.model});
+ return await hybrid.retrieve(req.body?.query,{limit:req.body?.limit??5});
 }catch(e){reply.code(e.status||400);return {error:e.message};}});
 app.post('/api/rag/neural/search',async(req,reply)=>{try{
  const engine=neural(req.body?.model);
