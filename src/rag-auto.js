@@ -75,7 +75,7 @@ export function createAutoIndexer(db,{root=process.cwd(),log=()=>{}}={}){
     watcher.unref();watchers.push(watcher);
    }catch(error){try{log({event:'rag:watch-unavailable',folder,error:String(error)});}catch{}}
   }
-  queueMicrotask(()=>{try{enqueue();}catch(error){try{log({event:'rag:error',error:String(error)});}catch{}});
+  queueMicrotask(()=>{try{enqueue();}catch(error){try{log({event:'rag:error',error:String(error)});}catch{}}});
  };
  const stop=()=>{closed=true;if(timer)clearInterval(timer);timer=null;if(debounce)clearTimeout(debounce);debounce=null;for(const watcher of watchers)watcher.close();watchers.length=0;queue.stop();};
  return {start,stop,run,enqueue,status:()=>({running,closed,scheduled:Boolean(timer),watchers:watchers.length,runCount,skippedCount,last,queue:queue.status()})};

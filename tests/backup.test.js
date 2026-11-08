@@ -45,7 +45,8 @@ test('backup retention never removes unrelated SQLite files',async()=>{
   const unrelated=join(folder,'tsukamiyora-my-personal-notes.sqlite');
   writeFileSync(unrelated,'do not touch');
   for(let i=0;i<3;i++)await backupDatabase({root,retention:1});
-  assert.equal(readdirSync(folder).filter(name=>/^tsukamiyora-\d{4}/.test(name)).length,1);
+  assert.equal(readdirSync(folder).filter(name=>/^tsukamiyora-\d{4}.*\.sqlite$/.test(name)).length,1);
+   assert.equal(readdirSync(folder).filter(name=>/^tsukamiyora-\d{4}.*\.sqlite\.sha256$/.test(name)).length,1);
   assert.ok(readdirSync(folder).includes('tsukamiyora-my-personal-notes.sqlite'));
  }finally{rmSync(root,{recursive:true,force:true});}
 });

@@ -68,7 +68,7 @@ export class KnowledgeIndex {
   if(!this.db.prepare('SELECT 1 FROM rag_sources WHERE id=?').get(sourceId))throw Error('Source not found');
   this.db.prepare('INSERT OR IGNORE INTO rag_edges VALUES(?,?,?,?)').run(subject,relation,object,sourceId);
  }
- neighbors(subject){return this.db.prepare('SELECT relation,object,source_id FROM rag_edges WHERE subject=? LIMIT 100').all(subject);}
+ neighbors(subject){return this.db.prepare('SELECT relation,object,source_id FROM rag_edges WHERE subject=? LIMIT 100').all(subject).map(row=>({...row}));}
  fact(subject,predicate,value,sourceId){
   if(![subject,predicate,value,sourceId].every(x=>typeof x==='string'&&x.length>0&&x.length<=500))throw Error('Invalid fact');
   if(!this.db.prepare('SELECT 1 FROM rag_sources WHERE id=?').get(sourceId))throw Error('Source not found');

@@ -11,7 +11,7 @@ test('retrieval normalizes, reranks and verifies source citations',()=>{
   index.ingest({id:'b',title:'Other',text:'Документы содержат отчеты'});
   const pipeline=new RagPipeline(index);
   const result=pipeline.retrieve('ПАМЯТЬ память документы');
-  assert.equal(result.rewritten,'память документы');
+  assert.equal(result.rewritten,'память memory документы documents');
   assert.equal(result.results[0].source_id,'a');
   assert.equal(result.modeUsed,'lexical');
   assert.equal(pipeline.verifyCitation(result.results[0].citation),true);

@@ -1,6 +1,7 @@
 // Deterministic, local, bounded ranking features; no LLM or network requests.
 const tokens=s=>new Set((String(s).toLocaleLowerCase('ru').match(/[\p{L}\p{N}]{2,}/gu)||[]));
-const sequence=s=>(String(s).toLocaleLowerCase('ru').match(/[\p{L}\p{N}]{2,}/gu)||[]);
+// Include single-letter words in adjacency checks to prevent false phrase matches.
+const sequence=s=>(String(s).toLocaleLowerCase('ru').match(/[\p{L}\p{N}]{1,}/gu)||[]);
 export function rerankRag(query,hits,{limit=5}={}){
  if(typeof query!=='string'||!query.trim()||query.length>1000||!Array.isArray(hits)||!Number.isInteger(limit)||limit<1||limit>30)throw Error('Invalid rerank input');
  const q=tokens(query),queryWords=sequence(query);
