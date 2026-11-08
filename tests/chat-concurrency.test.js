@@ -33,3 +33,19 @@ test('chat response pair is rolled back when assistant persistence fails',async(
   assert.equal(chat.metrics().failed,1);
  }finally{db.close();}
 });
+
+test('aborted response releases in-flight request guard',async()=>{
+ const db=new DatabaseSync(':memory:');
+ try{
+  const chat=new ChatService(db,{async *stream(){yield 'first';yield 'second';}});
+  const input={conversationId:'cancel',messageId:'id',message:'hello'};
+  const first=chat.respond(input);
+  assert.equal((await first.next()).value.text,'first');
+  await first.return();
+  const retry=chat.respond(input);
+  const events=[];
+  for await(const event of retry)events.push(event);
+  assert.equal(events.at(-1).type,'done');
+  assert.equal(chat.context.memory.history('cancel').length,2);
+ }finally{db.close();}
+});
