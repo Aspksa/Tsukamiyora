@@ -15,9 +15,9 @@ export function loadIndexConfig(root=process.cwd()){
  return value;
 }
 export function createAutoIndexer(db,{root=process.cwd(),log=()=>{}}={}){
- let timer=null,running=false,closed=false;
+ let timer=null,running=false,closed=false,last=null,runCount=0,skippedCount=0;
  const run=()=>{
-  if(closed||running)return {skipped:true};
+  if(closed||running){skippedCount++;return {skipped:true};}
   running=true;
   try{
    const cfg=loadIndexConfig(root);
@@ -30,7 +30,9 @@ export function createAutoIndexer(db,{root=process.cwd(),log=()=>{}}={}){
     try{results.push({folder,...indexDirectory(db,path,{maxFiles:cfg.maxFiles,maxBytes:cfg.maxBytes})});}
     catch(error){results.push({folder,error:String(error)});}
    }
-   log({event:'rag:index',results});return {results};
+   last={at:new Date().toISOString(),results};runCount++;
+   try{log({event:'rag:index',results});}catch{}
+   return {results};
   }finally{running=false;}
  };
  const start=()=>{
@@ -42,5 +44,5 @@ export function createAutoIndexer(db,{root=process.cwd(),log=()=>{}}={}){
   queueMicrotask(()=>{try{run();}catch(error){log({event:'rag:error',error:String(error)});}});
  };
  const stop=()=>{closed=true;if(timer)clearInterval(timer);timer=null;};
- return {start,stop,run};
+ return {start,stop,run,status:()=>({running,closed,scheduled:Boolean(timer),runCount,skippedCount,last})};
 }
