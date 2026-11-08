@@ -47,12 +47,12 @@ export class RagPipeline {
   // Feedback applies only to the same query; cap its influence to avoid
   // overwhelming relevance or allowing feedback to bypass source ACLs.
   const feedback=this.intelligence.feedbackScores(query);
-  selected=rerankRag(query,selected.filter(hit=>(!hit.source_id.startsWith('chat:')||allowed.has(hit.source_id))&&this.verifyCitation(hit.citation))
+  selected=rerankRag(rewritten,selected.filter(hit=>(!hit.source_id.startsWith('chat:')||allowed.has(hit.source_id))&&this.verifyCitation(hit.citation))
    .map(hit=>({...hit,feedbackBoost:feedback.get(hit.source_id)??0})),{limit});
   this.stats.verifiedCitations+=selected.length;
   const elapsedMs=Math.round((performance.now()-start)*100)/100;
   this.stats.queries++;this.stats.hits+=selected.length;if(!selected.length)this.stats.empty++;this.stats.totalMs+=elapsedMs;
-  return {query,rewritten,modeUsed,results:selected,needsReview:selected.length===0||selected[0].relevance<0.25,elapsedMs};
+  return {query,rewritten,modeUsed,results:selected,needsReview:selected.length===0||selected[0].rerankScore<0.15,elapsedMs};
  }
  verifyCitation(citation){
   if(!citation||typeof citation.chunkId!=='string'||typeof citation.sourceId!=='string')return false;
