@@ -27,8 +27,6 @@ export class ChatService {
    }
    if(!answer.trim())throw Error('Empty model response');
    const {conversationId,message,messageId}=request;
-   const existing=this.context.memory.history(conversationId,{limit:200});
-   if(existing.some(row=>row.id===digest(conversationId+'\0'+messageId)))throw Error('Message already saved');
    this.context.memory.append({conversationId,messageId,role:'user',content:message});
    this.context.memory.append({conversationId,messageId:messageId+':assistant',role:'assistant',content:answer});
    this.stats.completed++;
