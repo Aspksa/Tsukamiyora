@@ -23,7 +23,7 @@ test('Cloud.ru settings keep secrets local and do not expose them',async()=>{
   assert.equal(calls[0].options.headers.Authorization,'Bearer secret-local-only');
   assert.equal(calls[1].options.body.includes('test/model'),true);
   assert.equal(classifyCloudError(429),'Превышен лимит запросов');
-  assert.throws(()=>cloud.save({model:'https://bad.host/'}),/Invalid model/);
+  assert.throws(()=>cloud.save({model:'bad?model'}),/Invalid model/);
  }finally{rmSync(root,{recursive:true,force:true});}
 });
 test('Cloud.ru errors are mapped without exposing response bodies',async()=>{
