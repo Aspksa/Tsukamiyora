@@ -52,5 +52,6 @@ export function indexDirectory(db,folder,{maxFiles=2000,maxBytes=1024*1024}={}){
   const track=db.prepare('INSERT OR IGNORE INTO rag_file_roots(root,source_id) VALUES(?,?)');
   for(const id of seen)track.run(root,id);
  }
- return {scanned,changed,skipped,removed,remainingDirectories:pending.length};
+ return {scanned,changed,skipped,removed,remainingDirectories:pending.length,
+  complete:pending.length===0&&skipped===0&&!truncated&&scanned<maxFiles};
 }
