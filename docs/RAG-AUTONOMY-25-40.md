@@ -33,3 +33,13 @@ This document tracks scope and acceptance criteria. A checked item is not a clai
 ## Agent coordinator milestone
 
 `src/rag-agent-coordinator.js` exposes eight role identifiers, a local evidence-backed lesson proposal workflow, stale-evidence audits, a bounded audit queue and transactional rejection of obsolete pending lessons. It deliberately does **not** run autonomous cloud agents or automatically approve knowledge. `tests/rag-agent-coordinator.test.js` checks the evidence lifecycle.
+
+## Runtime integration
+
+The local server now exposes:
+- `GET /api/rag/agents/coordinator/status`: role registry, audit queue, and counters.
+- `GET /api/rag/agents/coordinator/audit?limit=30`: read-only evidence freshness audit.
+- `POST /api/rag/agents/coordinator/audit`: enqueue bounded local cleanup of stale pending lessons.
+- `POST /api/rag/agents/coordinator/lessons`: create a source-grounded, pending lesson; never auto-approve.
+
+The evidence audit runs once after successful server startup and then every 30 minutes. The timer is cleared on shutdown. All operations are local and require no Cloud.ru calls. The audit only rejects **pending** lessons whose evidence changed; it never deletes source documents or promotes unreviewed lessons.
