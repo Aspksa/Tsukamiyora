@@ -46,6 +46,7 @@ import { analyzeAgentFailures } from './agent-failure-analysis.js';
 import { evaluateAgentCandidate } from './agent-candidate-evaluation.js';
 import { runTrustedAgentBenchmark, compareTrustedStrategies } from './agent-trusted-benchmark.js';
 import { runAgentCapabilitySuite } from './agent-capability-suite.js';
+import { runDocumentRetrievalBenchmark } from './agent-document-benchmark.js';
 import { diagnoseAgents } from './rag-agent-diagnostics.js';
 import { assessCloudBudget } from './cloud-budget.js';
 import { createRagQualityMonitor } from './rag-quality-monitor.js';
@@ -212,6 +213,7 @@ app.get('/api/rag/agents/coordinator/activity',async(req,reply)=>{try{return {it
 app.post('/api/rag/agents/tasks/plan',async(req,reply)=>{try{return planAgentTask(req.body?.text,{allowedActions:agentTasks.status().allowedActions});}catch(e){reply.code(400);return {error:e.message};}});
 app.post('/api/rag/agents/tasks/dispatch',async(req,reply)=>{try{return submitPlannedAgentTask(agentTasks,req.body?.text);}catch(e){reply.code(400);return {error:e.message};}});
 app.get('/api/rag/agents/failures',async(req,reply)=>{try{return analyzeAgentFailures(db,{limit:Number(req.query?.limit??100)});}catch(e){reply.code(400);return {error:e.message};}});
+app.get('/api/rag/agents/academy/documents/benchmark',async(req,reply)=>{try{return runDocumentRetrievalBenchmark({mode:req.query?.mode??'lexical',limit:Number(req.query?.limit??3)});}catch(e){reply.code(400);return {error:e.message};}});
 app.get('/api/rag/agents/academy/capabilities',async()=>runAgentCapabilitySuite());
 app.get('/api/rag/agents/academy/benchmark',async()=>({benchmarkId:'ranked-results-v1',strategies:['original','reverse','alphabetical'],serverScored:true,heldOut:false}));
 app.post('/api/rag/agents/academy/benchmark/run',async(req,reply)=>{try{return runTrustedAgentBenchmark(req.body?.strategy);}catch(e){reply.code(400);return {error:e.message};}});
