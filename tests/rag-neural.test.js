@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import {DatabaseSync} from 'node:sqlite';
 import {KnowledgeIndex} from '../src/rag.js';
 import {NeuralRag} from '../src/rag-neural.js';
+import {RagPermissions} from '../src/rag-permissions.js';
 
 test('neural RAG stores document vectors and reuses them without extra calls',async()=>{
  const db=new DatabaseSync(':memory:');
@@ -10,6 +11,7 @@ test('neural RAG stores document vectors and reuses them without extra calls',as
   const index=new KnowledgeIndex(db);
   index.ingest({id:'file:public',title:'Public',text:'двигатель мотор масло'});
   index.ingest({id:'chat:private',title:'Private',text:'личный секрет'});
+  new RagPermissions(db).set({sourceId:'file:public',allowed:true});
   let calls=0;
   const cloud={async request(path,{body}){
    assert.equal(path,'/embeddings');calls++;
@@ -32,6 +34,7 @@ test('neural index reindexes changed content and excludes deleted chunks',async(
  try{
   const index=new KnowledgeIndex(db);
   index.ingest({id:'file:manual',title:'Manual',text:'первая версия'});
+  new RagPermissions(db).set({sourceId:'file:manual',allowed:true});
   const cloud={async request(){return {data:[{embedding:[1,2,3]}]};}};
   const neural=new NeuralRag(db,cloud,{model:'test-embedding'});
   assert.equal((await neural.sync()).indexed,1);
