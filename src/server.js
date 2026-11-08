@@ -8,8 +8,8 @@ await app.register(websocket);
 const db=openStorage();
 mkdirSync('logs',{recursive:true});
 const log=(message)=>appendFileSync('logs/core.jsonl',JSON.stringify({at:new Date().toISOString(),message})+'\n');
-app.get('/health',async()=>{db.prepare('SELECT 1').get();return {status:'ok',service:'tsukamiyora-core',version:'0.2.0',database:'ok'};});
-app.get('/',async()=>({name:'Tsukamiyora Core',status:'running',endpoints:['/health','/api/events','/ws']}));
+app.get('/health',async()=>{db.prepare('SELECT 1').get();return {status:'ok',service:'tsukamiyora-core',version:'0.3.0',database:'ok'};});
+app.get('/',async()=>({name:'Tsukamiyora Core',status:'running',endpoints:['/health','/api/events','/api/metrics','/api/modules','/api/tasks','/ws']}));
 app.get('/api/metrics',async()=>metrics());
 app.get('/api/modules',async()=>({modules:modules()}));
 app.post('/api/tasks',async(req,reply)=>{
