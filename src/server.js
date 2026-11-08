@@ -163,6 +163,7 @@ app.get('/api/rag/guardian/history',async(req,reply)=>{try{return {items:guardia
 app.get('/api/rag/indexer/status',async()=>autoIndex.status());
 app.post('/api/rag/agents/experience',async(req,reply)=>{try{const result=agentExperience.propose(req.body??{});reply.code(201);return result;}catch(e){reply.code(400);return {error:e.message};}});
 app.post('/api/rag/agents/experience/review',async(req,reply)=>{try{return agentExperience.review(req.body??{});}catch(e){reply.code(400);return {error:e.message};}});
+app.get('/api/rag/agents/experience/reviews',async(req,reply)=>{try{return {items:agentExperience.reviewHistory({limit:Number(req.query?.limit??30)})};}catch(e){reply.code(400);return {error:e.message};}});
 app.get('/api/rag/agents/experience/pending',async(req,reply)=>{try{return {items:agentExperience.pending({limit:Number(req.query?.limit??30)})};}catch(e){reply.code(400);return {error:e.message};}});
 app.get('/api/rag/agents/experience',async(req,reply)=>{try{return {items:agentExperience.share({taskKey:req.query?.taskKey,limit:Number(req.query?.limit??10)})};}catch(e){reply.code(400);return {error:e.message};}});
 app.get('/api/rag/agents/research',async(req,reply)=>{try{
