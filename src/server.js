@@ -36,7 +36,7 @@ app.get('/api/cloud/models',async(req,reply)=>{try{return await cloud.models();}
 app.post('/api/cloud/test',async(req,reply)=>{try{return await cloud.testModel();}catch(e){reply.code(e.status||503);return {error:e.message};}});
 app.post('/api/cloud/chat',async(req,reply)=>{try{const response=await cloud.complete(req.body?.messages);return {message:response.choices?.[0]?.message??null,usage:response.usage??null};}catch(e){reply.code(e.status||503);return {error:e.message};}});
 app.get('/health',async()=>{db.prepare('SELECT 1').get();return {status:'ok',service:'tsukamiyora-core',version:'0.3.0',database:'ok'};});
-app.get('/',async()=>({name:'Tsukamiyora Core',status:'running',endpoints:['/health','/api/events','/api/metrics','/api/modules','/api/tasks','/api/rag/search','/api/rag/documents','/api/rag/context','/api/rag/status','/ws']}));
+app.get('/',async()=>({name:'Tsukamiyora Core',status:'running',settings:'/settings',endpoints:['/health','/api/events','/api/metrics','/api/modules','/api/tasks','/api/rag/search','/api/rag/documents','/api/rag/context','/api/rag/status','/ws']}));
 app.get('/api/metrics',async()=>metrics());
 app.get('/api/modules',async()=>({modules:modules()}));
 app.post('/api/tasks',async(req,reply)=>{
