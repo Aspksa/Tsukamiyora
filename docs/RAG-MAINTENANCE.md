@@ -48,3 +48,7 @@ Run `npm test` using Node.js 22.13 or newer. The repository also contains a GitH
 ## Restore preflight
 
 Use `GET /api/system/backups/restore-check?filename=tsukamiyora-...sqlite` to verify a backup before considering recovery. The filename must be a direct child of `data/backups`; path traversal and out-of-folder symlinks are rejected. The endpoint is read-only and reports `restored:false`. It does not replace any live database. Stop the server, make an independent copy of the current data directory, and only then perform a separately controlled manual restore.
+
+## Snapshot checksums
+
+New backups include a `.sqlite.sha256` sidecar containing a SHA-256 digest of the finalized SQLite snapshot. The backup inventory and read-only restore preflight verify both SQLite integrity and the checksum. A mismatch marks the snapshot invalid and blocks restore preflight. Legacy snapshots without sidecars remain readable, but the report marks their checksum as absent; treat them as lower assurance. Checksum verification uses bounded memory and never sends data to external services. SHA-256 checks detect accidental corruption or modification, but do not authenticate against an attacker who can replace both the snapshot and its sidecar.
