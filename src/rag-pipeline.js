@@ -3,7 +3,7 @@ import { RagIntelligence } from './rag-intelligence.js';
 const words=text=>(text.toLocaleLowerCase('ru').match(/[\p{L}\p{N}]{2,}/gu)||[]);
 const unique=items=>[...new Set(items)];
 export class RagPipeline {
- constructor(index){this.index=index;this.intelligence=new RagIntelligence(index.db);this.stats={queries:0,hits:0,empty:0,totalMs:0};}
+ constructor(index){this.index=index;this.intelligence=new RagIntelligence(index.db);this.stats={queries:0,hits:0,empty:0,totalMs:0,semanticFallbacks:0,verifiedCitations:0};}
  rewrite(query){
   if(typeof query!=='string'||!query.trim()||query.length>1000||!words(query).length)throw Error('Invalid query');
   return unique(words(query)).slice(0,24).join(' ');
@@ -19,6 +19,7 @@ export class RagPipeline {
   }).sort((a,b)=>b.relevance-a.relevance||a.rank-b.rank);
   let selected=ranked.slice(0,limit),modeUsed='lexical';
   if(mode==='semantic'||mode==='hybrid'||(mode==='adaptive'&&(!selected.length||selected[0].relevance<0.25))){
+   if(mode==='adaptive')this.stats.semanticFallbacks++;
    this.intelligence.sync({limit:500});
    const semantic=this.intelligence.semantic(query,{limit:Math.min(30,limit*3)});
    const combined=new Map();
@@ -31,6 +32,8 @@ export class RagPipeline {
    selected=[...combined.values()].sort((a,b)=>b.hybridScore-a.hybridScore).slice(0,limit);
    modeUsed=mode==='semantic'?'semantic':'hybrid';
   }
+  selected=selected.filter(hit=>this.verifyCitation(hit.citation));
+  this.stats.verifiedCitations+=selected.length;
   const elapsedMs=Math.round((performance.now()-start)*100)/100;
   this.stats.queries++;this.stats.hits+=selected.length;if(!selected.length)this.stats.empty++;this.stats.totalMs+=elapsedMs;
   return {query,rewritten,modeUsed,results:selected,needsReview:selected.length===0||selected[0].relevance<0.25,elapsedMs};
