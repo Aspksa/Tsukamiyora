@@ -2,7 +2,7 @@ import { createHash } from 'node:crypto';
 import { ChatContext } from './chat-context.js';
 const digest=text=>createHash('sha256').update(text).digest('hex');
 export class ChatService {
- constructor(db,cloud){this.context=new ChatContext(db);this.cloud=cloud;this.stats={requests:0,completed:0,failed:0,estimatedInputChars:0};}
+ constructor(db,cloud){this.context=new ChatContext(db);this.cloud=cloud;this.inFlight=new Set();this.stats={requests:0,completed:0,failed:0,estimatedInputChars:0};}
  prepare({conversationId,message,messageId}){
   if(typeof conversationId!=='string'||!conversationId.trim()||conversationId.length>200||typeof message!=='string'||!message.trim()||message.length>8000||typeof messageId!=='string'||!messageId.trim()||messageId.length>190)throw Error('Invalid chat request');
   const duplicate=this.context.memory.db.prepare('SELECT 1 FROM rag_messages WHERE id=?').get(digest(conversationId+'\0'+messageId));
@@ -25,7 +25,11 @@ export class ChatService {
   return {messages,ctx,conversationId,message,messageId};
  }
  async *respond(input){
-  const request=this.prepare(input);this.stats.requests++;this.stats.estimatedInputChars+=request.messages.reduce((n,x)=>n+x.content.length,0);
+  const key=digest(String(input?.conversationId)+'\0'+String(input?.messageId));
+  if(this.inFlight.has(key))throw Error('Message already in progress');
+  const request=this.prepare(input);
+  this.inFlight.add(key);
+  this.stats.requests++;this.stats.estimatedInputChars+=request.messages.reduce((n,x)=>n+x.content.length,0);
   let answer='';
   try{
    for await(const delta of this.cloud.stream(request.messages)){
@@ -35,11 +39,17 @@ export class ChatService {
    }
    if(!answer.trim())throw Error('Empty model response');
    const {conversationId,message,messageId}=request;
-   this.context.memory.append({conversationId,messageId,role:'user',content:message});
-   this.context.memory.append({conversationId,messageId:messageId+':assistant',role:'assistant',content:answer});
+   const db=this.context.memory.db;
+   db.exec('SAVEPOINT chat_response_pair');
+   try{
+    this.context.memory.append({conversationId,messageId,role:'user',content:message});
+    this.context.memory.append({conversationId,messageId:messageId+':assistant',role:'assistant',content:answer});
+    db.exec('RELEASE SAVEPOINT chat_response_pair');
+   }catch(error){db.exec('ROLLBACK TO SAVEPOINT chat_response_pair');db.exec('RELEASE SAVEPOINT chat_response_pair');throw error;}
    this.stats.completed++;
    yield {type:'done',conversationId,messageId,answer,sourceIds:request.ctx.context.map(x=>x.source.sourceId)};
   }catch(error){this.stats.failed++;throw error;}
+  finally{this.inFlight.delete(key);}
  }
  metrics(){return {...this.stats};}
 }
