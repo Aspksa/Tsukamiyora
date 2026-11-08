@@ -24,7 +24,8 @@ test('approved agent experience can accompany grounded lexical retrieval',()=>{
 test('guardian journal retains history across scheduler instances',()=>{
  const db=new DatabaseSync(':memory:');
  try{
-  const first=createGuardianScheduler(db);
+  new KnowledgeIndex(db);
+ const first=createGuardianScheduler(db);
   first.run();first.stop();
   const second=createGuardianScheduler(db);
   assert.equal(second.history().length,1);
