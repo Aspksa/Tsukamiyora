@@ -5,6 +5,7 @@ import {KnowledgeIndex} from '../src/rag.js';
 import {KnowledgeLifecycle} from '../src/rag-lifecycle.js';
 import {MultiStepRag} from '../src/rag-multistep.js';
 import {NeuralRag} from '../src/rag-neural.js';
+import {RagPermissions} from '../src/rag-permissions.js';
 
 test('multi-step retrieval finds evidence for both clauses and excludes chats',()=>{
  const db=new DatabaseSync(':memory:');
@@ -40,6 +41,7 @@ test('neural sync excludes non-file sources even if they are not chats',async()=
   const index=new KnowledgeIndex(db);
   index.ingest({id:'private:internal',title:'Private',text:'sensitive internal data'});
   index.ingest({id:'file:public',title:'Public',text:'public technical reference'});
+  new RagPermissions(db).set({sourceId:'file:public',allowed:true});
   const uploaded=[];
   const cloud={async request(path,{body}){uploaded.push(body.input);return {data:[{embedding:[1,0]}]};}};
   const neural=new NeuralRag(db,cloud,{model:'embed-test'});
