@@ -79,6 +79,7 @@ app.addHook('onRequest',async(req,reply)=>{
   }
  }
 });
+app.get('/knowledge',async(req,reply)=>{reply.type('text/html; charset=utf-8');return readFileSync(new URL('../public/knowledge.html',import.meta.url),'utf8');});
 app.get('/chat',async(req,reply)=>{reply.type('text/html; charset=utf-8');return readFileSync(new URL('../public/chat.html',import.meta.url),'utf8');});
 app.post('/api/chat/stream',async(req,reply)=>{
  let generator;
