@@ -12,6 +12,7 @@ import { NeuralRag } from './rag-neural.js';
 import { HybridNeuralRag } from './rag-hybrid-neural.js';
 import { KnowledgeLifecycle } from './rag-lifecycle.js';
 import { MultiStepRag } from './rag-multistep.js';
+import { RagPermissions } from './rag-permissions.js';
 import { evaluateRag, compareRag } from './rag-evaluation.js';
 import { createAutoIndexer } from './rag-auto.js';
 import { tasks, metrics, modules, events } from './runtime.js';
@@ -24,6 +25,7 @@ const ragPipeline=new RagPipeline(rag);
 const ragIntelligence=new RagIntelligence(db);
 const lifecycle=new KnowledgeLifecycle(db);
 const multiStep=new MultiStepRag(rag);
+const ragPermissions=new RagPermissions(db);
 const memory=new ConversationMemory(db);
 const chatContext=new ChatContext(db);
 const cloud=new CloudRu();
@@ -93,6 +95,8 @@ const neural=model=>{
  if(!neuralByModel.has(model))neuralByModel.set(model,new NeuralRag(db,cloud,{model}));
  return neuralByModel.get(model);
 };
+app.get('/api/rag/cloud/permissions',async()=>({sources:ragPermissions.list()}));
+app.post('/api/rag/cloud/permissions',async(req,reply)=>{try{return ragPermissions.set(req.body??{});}catch(e){reply.code(400);return {error:e.message};}});
 app.post('/api/rag/neural/index',async(req,reply)=>{try{
  const engine=neural(req.body?.model);
  return await engine.sync({limit:req.body?.limit??25});
