@@ -63,6 +63,8 @@ test('adaptive corrective retrieval retries sparse terms without model calls',()
  try{
   const index=new KnowledgeIndex(db);
   index.ingest({id:'repair',title:'Maintenance',text:'автомобиль двигатель масло ремонт'});
+  const originalSearch=index.search.bind(index);
+  index.search=(query,options)=>query.includes('несуществующийтермин')?[]:originalSearch(query,options);
   const pipeline=new RagPipeline(index);
   const result=pipeline.retrieve('несуществующийтермин двигатель',{mode:'adaptive'});
   assert.ok(result.results.some(x=>x.source_id==='repair'));
