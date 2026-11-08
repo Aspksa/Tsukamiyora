@@ -186,7 +186,7 @@ app.post('/api/rag/agents/academy/exams/grade',async(req,reply)=>{try{const resu
 app.get('/api/rag/agents/academy/profiles',async()=>({items:agentAcademy.profiles()}));
 app.get('/api/rag/agents/academy/profile/:role',async(req,reply)=>{try{return agentAcademy.profile(req.params.role);}catch(e){reply.code(400);return {error:e.message};}});
 app.get('/api/rag/agents/academy/history/:role',async(req,reply)=>{try{return {items:agentAcademy.history({role:req.params.role,limit:Number(req.query?.limit??30)})};}catch(e){reply.code(400);return {error:e.message};}});
-app.post('/api/rag/agents/academy/results',async(req,reply)=>{try{reply.code(201);return agentAcademy.record(req.body??{});}catch(e){reply.code(400);return {error:e.message};}});
+// Scores are written by server-side graders only; no public self-scoring endpoint.
 app.post('/api/rag/agents/academy/candidates',async(req,reply)=>{try{reply.code(201);return agentAcademy.propose(req.body??{});}catch(e){reply.code(400);return {error:e.message};}});
 app.get('/api/rag/agents/academy/candidates',async(req,reply)=>{try{return {items:agentAcademy.candidates({limit:Number(req.query?.limit??30)})};}catch(e){reply.code(400);return {error:e.message};}});
 app.get('/api/rag/agents/coordinator/status',async()=>({roles:agentCoordinator.roles,...agentCoordinator.status()}));
