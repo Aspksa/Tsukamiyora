@@ -41,17 +41,28 @@ export function indexDirectory(db,folder,{maxFiles=2000,maxBytes=1024*1024}={}){
   }
  }
  // Never delete tracked sources after an incomplete or capped scan.
- if(pending.length===0&&skipped===0&&!truncated&&scanned<maxFiles){
-  db.exec('CREATE TABLE IF NOT EXISTS rag_file_roots(root TEXT NOT NULL, source_id TEXT NOT NULL, PRIMARY KEY(root,source_id))');
-  const old=db.prepare('SELECT source_id FROM rag_file_roots WHERE root=?').all(root);
-  for(const row of old){if(!seen.has(row.source_id)){if(rag.removeSource(row.source_id))removed++;db.prepare('DELETE FROM rag_file_roots WHERE root=? AND source_id=?').run(root,row.source_id);}}
+ db.exec('CREATE TABLE IF NOT EXISTS rag_file_roots(root TEXT NOT NULL, source_id TEXT NOT NULL, PRIMARY KEY(root,source_id))');
+ const complete=pending.length===0&&skipped===0&&!truncated&&scanned<maxFiles;
+ // A failed or capped scan may add observations, but cannot purge tracked data.
+ db.exec('SAVEPOINT rag_root_sync');
+ try{
+  if(complete){
+   const old=db.prepare('SELECT source_id FROM rag_file_roots WHERE root=?').all(root);
+   for(const row of old){
+    if(!seen.has(row.source_id)){
+     if(rag.removeSource(row.source_id))removed++;
+     db.prepare('DELETE FROM rag_file_roots WHERE root=? AND source_id=?').run(root,row.source_id);
+    }
+   }
+  }
   const track=db.prepare('INSERT OR IGNORE INTO rag_file_roots(root,source_id) VALUES(?,?)');
   for(const id of seen)track.run(root,id);
- }else{
-  db.exec('CREATE TABLE IF NOT EXISTS rag_file_roots(root TEXT NOT NULL, source_id TEXT NOT NULL, PRIMARY KEY(root,source_id))');
-  const track=db.prepare('INSERT OR IGNORE INTO rag_file_roots(root,source_id) VALUES(?,?)');
-  for(const id of seen)track.run(root,id);
+  db.exec('RELEASE SAVEPOINT rag_root_sync');
+ }catch(error){
+  db.exec('ROLLBACK TO SAVEPOINT rag_root_sync');
+  db.exec('RELEASE SAVEPOINT rag_root_sync');
+  throw error;
  }
  return {scanned,changed,skipped,removed,remainingDirectories:pending.length,
-  complete:pending.length===0&&skipped===0&&!truncated&&scanned<maxFiles};
+  complete};
 }
