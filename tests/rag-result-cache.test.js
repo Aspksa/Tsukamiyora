@@ -35,3 +35,15 @@ test('chat-scoped retrieval is never stored in public result cache',()=>{
   assert.equal(publicResult.cacheHit,false);
  }finally{db.close();}
 });
+
+test('semantic retrieval bypasses public lexical cache',()=>{
+ const db=new DatabaseSync(':memory:');
+ try{
+  const index=new KnowledgeIndex(db),pipeline=new RagPipeline(index);
+  index.ingest({id:'file:manual',title:'Manual',text:'масло двигателя'});
+  const first=pipeline.retrieve('масло',{mode:'semantic'});
+  const second=pipeline.retrieve('масло',{mode:'semantic'});
+  assert.equal(first.cacheHit,false);
+  assert.equal(second.cacheHit,false);
+ }finally{db.close();}
+});
