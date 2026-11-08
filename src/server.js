@@ -38,7 +38,7 @@ app.post('/api/chat/stream',async(req,reply)=>{
  let generator;
  try{generator=chatService.respond(req.body??{});const first=await generator.next();
   reply.hijack();reply.raw.writeHead(200,{'Content-Type':'text/event-stream; charset=utf-8','Cache-Control':'no-cache','X-Accel-Buffering':'no'});
-  const send=item=>reply.raw.write('data: '+JSON.stringify(item)+'\\n\\n');
+  const send=item=>reply.raw.write('data: '+JSON.stringify(item)+'\n\n');
   if(!first.done)send(first.value);
   try{for await(const event of generator)send(event);}
   catch(e){send({type:'error',error:e.message});}
