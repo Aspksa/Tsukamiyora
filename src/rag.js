@@ -15,7 +15,10 @@ export class KnowledgeIndex {
  ingest({id,title,text,chunkSize=1000}){
   if(typeof id!=='string'||!id.trim()||id.length>200||typeof title!=='string'||title.length>500||typeof text!=='string'||text.length>1000000||!Number.isInteger(chunkSize)||chunkSize<200||chunkSize>4000)throw Error('Invalid document');
   const hash=digest(text),old=this.db.prepare('SELECT body_hash FROM rag_sources WHERE id=?').get(id);
-  if(old?.body_hash===hash)return {changed:false,chunks:0};
+  if(old?.body_hash===hash){
+   this.db.prepare('UPDATE rag_sources SET title=?,updated_at=CURRENT_TIMESTAMP WHERE id=? AND title<>?').run(title,id,title);
+   return {changed:false,chunks:0};
+  }
   const parts=[];for(let p=0;p<text.length;p+=chunkSize)parts.push(text.slice(p,p+chunkSize));
   this.db.exec('SAVEPOINT rag_index_write');
   try{
