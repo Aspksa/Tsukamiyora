@@ -1,8 +1,7 @@
 import { backup, DatabaseSync } from 'node:sqlite';
-import { existsSync, mkdirSync, readdirSync, unlinkSync, renameSync, lstatSync } from 'node:fs';
+import { existsSync, mkdirSync, readdirSync, unlinkSync, renameSync, lstatSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { randomUUID } from 'node:crypto';
-import {writeFileSync} from 'node:fs';
 import {sha256File} from './backup-checksum.js';
 export async function backupDatabase({root=process.cwd(),retention=10}={}){
  if(typeof root!=='string'||!root.trim()||!Number.isInteger(retention)||retention<1||retention>100)throw Error('Invalid backup options');
@@ -23,7 +22,13 @@ export async function backupDatabase({root=process.cwd(),retention=10}={}){
   // Hash the finished snapshot for tamper/corruption detection.
   const digest=sha256File(target);
   writeFileSync(target+'.sha256',digest+'\n',{flag:'wx'});
- } catch(e) { if(existsSync(tmp))unlinkSync(tmp); throw e; }
+ } catch(e) {
+  if(existsSync(tmp))unlinkSync(tmp);
+  // Never leave a published snapshot without its verified checksum.
+  if(existsSync(target+'.sha256'))unlinkSync(target+'.sha256');
+  if(existsSync(target))unlinkSync(target);
+  throw e;
+ }
  const files=readdirSync(folder).filter(n=>/^tsukamiyora-\d{4}-\d{2}-\d{2}T\d{2}-\d{2}-\d{2}-\d{3}Z(?:-[0-9a-f]{8})?\.sqlite$/.test(n)).sort().reverse();
  // Retain only snapshots produced by this application; do not delete unrelated files.
  for(const old of files.slice(retention)){
