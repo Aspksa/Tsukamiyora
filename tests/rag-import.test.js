@@ -27,6 +27,7 @@ test('removed file is purged after full scan but retained after truncated scan',
   writeFileSync(join(root,'two.md'),'Уникальный второй документ');
   assert.equal(indexDirectory(db,root).changed,2);
   unlinkSync(join(root,'one.md'));
+  writeFileSync(join(root,'three.md'),'Дополнительный документ');
   const partial=indexDirectory(db,root,{maxFiles:1});
   assert.equal(partial.removed,0);
   const full=indexDirectory(db,root);
