@@ -14,7 +14,15 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
-      - run: npm install --ignore-scripts --no-audit --no-fund
+      - run: npm install --package-lock-only --ignore-scripts --no-audit --no-fund
+      - run: npm run verify
+      - run: npm ci --ignore-scripts --no-audit --no-fund
+      - name: Upload generated dependency lock
+        if: runner.os == 'Linux'
+        uses: actions/upload-artifact@v4
+        with:
+          name: generated-package-lock
+          path: package-lock.json
       - run: node --test
       - run: node scripts/diagnose.js
       - run: node src/backup.js --run-backup
