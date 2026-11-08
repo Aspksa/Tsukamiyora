@@ -26,10 +26,20 @@ export class RagIntelligence {
  }
  sync({limit=500}={}){
   if(!Number.isInteger(limit)||limit<1||limit>5000)throw Error('Invalid limit');
-  this.db.prepare('DELETE FROM rag_vectors WHERE chunk_id NOT IN (SELECT id FROM rag_chunks)').run();
-  const rows=this.db.prepare('SELECT c.id,c.body,c.body_hash FROM rag_chunks c LEFT JOIN rag_vectors v ON v.chunk_id=c.id WHERE v.chunk_id IS NULL OR v.body_hash<>c.body_hash LIMIT ?').all(limit);
-  const insert=this.db.prepare('INSERT INTO rag_vectors(chunk_id,body_hash,vector) VALUES(?,?,?) ON CONFLICT(chunk_id) DO UPDATE SET body_hash=excluded.body_hash,vector=excluded.vector,updated_at=CURRENT_TIMESTAMP');
-  for(const row of rows)insert.run(row.id,row.body_hash,JSON.stringify(this.embed(row.body)));
+  // A failed batch must not leave partially refreshed embeddings.
+  this.db.exec('SAVEPOINT rag_vector_sync');
+  let rows;
+  try{
+   this.db.prepare('DELETE FROM rag_vectors WHERE chunk_id NOT IN (SELECT id FROM rag_chunks)').run();
+   rows=this.db.prepare('SELECT c.id,c.body,c.body_hash FROM rag_chunks c LEFT JOIN rag_vectors v ON v.chunk_id=c.id WHERE v.chunk_id IS NULL OR v.body_hash<>c.body_hash ORDER BY c.id LIMIT ?').all(limit);
+   const insert=this.db.prepare('INSERT INTO rag_vectors(chunk_id,body_hash,vector) VALUES(?,?,?) ON CONFLICT(chunk_id) DO UPDATE SET body_hash=excluded.body_hash,vector=excluded.vector,updated_at=CURRENT_TIMESTAMP');
+   for(const row of rows)insert.run(row.id,row.body_hash,JSON.stringify(this.embed(row.body)));
+   this.db.exec('RELEASE SAVEPOINT rag_vector_sync');
+  }catch(error){
+   this.db.exec('ROLLBACK TO SAVEPOINT rag_vector_sync');
+   this.db.exec('RELEASE SAVEPOINT rag_vector_sync');
+   throw error;
+  }
   this.stats.indexed+=rows.length;this.queryCache.clear();return {indexed:rows.length};
  }
  semantic(query,{limit=5,excludeChat=true,allowedChatSourceIds=null}={}){
