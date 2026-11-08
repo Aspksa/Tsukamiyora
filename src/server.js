@@ -170,6 +170,7 @@ app.get('/api/system/backups/restore-check',async(req,reply)=>{try{return checkR
 app.get('/api/system/backups',async(req,reply)=>{try{return {items:inspectBackups({limit:Number(req.query?.limit??10)})};}catch(e){reply.code(400);return {error:e.message};}});
 app.post('/api/rag/agents/experience',async(req,reply)=>{try{const result=agentExperience.propose(req.body??{});reply.code(201);return result;}catch(e){reply.code(400);return {error:e.message};}});
 app.post('/api/rag/agents/experience/review',async(req,reply)=>{try{return agentExperience.review(req.body??{});}catch(e){reply.code(400);return {error:e.message};}});
+app.get('/api/rag/agents/coordinator/activity',async(req,reply)=>{try{return {items:agentCoordinator.activity({limit:Number(req.query?.limit??30)})};}catch(e){reply.code(400);return {error:e.message};}});
 app.get('/api/rag/agents/coordinator/status',async()=>({roles:agentCoordinator.roles,...agentCoordinator.status()}));
 app.get('/api/rag/agents/coordinator/audit',async(req,reply)=>{try{return agentCoordinator.auditPending({limit:Number(req.query?.limit??30)});}catch(e){reply.code(400);return {error:e.message};}});
 app.post('/api/rag/agents/coordinator/audit',async()=>agentCoordinator.enqueueAudit());
