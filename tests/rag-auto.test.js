@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtempSync, mkdirSync, writeFileSync, rmSync, readFileSync } from 'node:fs';
+import { mkdtempSync, mkdirSync, writeFileSync, rmSync, readFileSync, symlinkSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
@@ -45,4 +45,19 @@ test('scheduled indexer exposes queue status and avoids duplicate queued scans',
   assert.ok(new KnowledgeIndex(db).search('очередь').length>0);
   indexer.stop();
  }finally{db.close();rmSync(root,{recursive:true,force:true});}
+});
+
+test('indexer refuses symlinked folders outside project',()=>{
+ const root=mkdtempSync(join(tmpdir(),'tsuka-root-'));
+ const outside=mkdtempSync(join(tmpdir(),'tsuka-outside-'));
+ const db=new DatabaseSync(':memory:');
+ try{
+  mkdirSync(join(root,'data'),{recursive:true});
+  writeFileSync(join(outside,'secret.md'),'Sensitive external document');
+  symlinkSync(outside,join(root,'data','external'),'dir');
+  writeFileSync(join(root,'data','rag-settings.json'),JSON.stringify({enabled:true,folders:['data/external'],intervalMinutes:30,maxFiles:20,maxBytes:10000}));
+  const result=createAutoIndexer(db,{root}).run();
+  assert.match(result.results[0].error,/outside project root/);
+  assert.equal(db.prepare('SELECT COUNT(*) n FROM rag_sources').get().n,0);
+ }finally{db.close();rmSync(root,{recursive:true,force:true});rmSync(outside,{recursive:true,force:true});}
 });
