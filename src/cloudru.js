@@ -6,7 +6,7 @@ export function classifyCloudError(status){
  return ({400:'Неверные параметры запроса',401:'Неверный или просроченный API-ключ',403:'Нет доступа к Foundation Models или модели',404:'Модель или адрес API не найден',409:'Модель недоступна',429:'Превышен лимит запросов',500:'Ошибка сервера Cloud.ru',502:'Ошибка шлюза',503:'Сервис временно недоступен',504:'Тайм-аут шлюза'})[status]||'Ошибка Cloud.ru';
 }
 export class CloudRu {
- constructor({root=process.cwd(),fetchImpl=fetch}={}){this.path=join(root,'data','cloudru-settings.json');this.usageStore=createCloudUsageStore(root);this.fetchImpl=fetchImpl;this.last={status:'not_checked',checkedAt:null};this.usage={requests:0,succeeded:0,failed:0,promptTokens:0,completionTokens:0,unreportedResponses:0};}
+ constructor({root=process.cwd(),fetchImpl=fetch}={}){this.path=join(root,'data','cloudru-settings.json');this.usageStore=createCloudUsageStore(root);this.fetchImpl=fetchImpl;this.last={status:'not_checked',checkedAt:null};this.usage={requests:0,succeeded:0,failed:0,promptTokens:0,completionTokens:0,unreportedResponses:0,durationMs:0};}
  usageMetrics(){return {...this.usageStore.snapshot(),session:{...this.usage}};}
  bump(field,amount=1){this.usage[field]+=amount;this.usageStore.add({[field]:amount});}
  recordUsage(body){const usage=body?.usage;if(usage&&Number.isSafeInteger(usage.prompt_tokens)&&usage.prompt_tokens>=0&&Number.isSafeInteger(usage.completion_tokens)&&usage.completion_tokens>=0){this.bump('promptTokens',usage.prompt_tokens);this.bump('completionTokens',usage.completion_tokens);}else this.bump('unreportedResponses');}
@@ -81,7 +81,7 @@ export class CloudRu {
    if(finished)break;
   }
   if(!finished){this.bump('failed');throw Error('Cloud.ru stream ended unexpectedly');}
-  this.bump('succeeded');this.usage.unreportedResponses++;
+  this.bump('durationMs',Date.now()-started);this.bump('succeeded');this.bump('unreportedResponses');
  }
  async complete(messages){
   const {model}=this.read();if(!model)throw Object.assign(new Error('Модель не выбрана'),{status:400});
