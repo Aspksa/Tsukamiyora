@@ -35,3 +35,12 @@ Start the application normally and open `http://127.0.0.1:4177/knowledge`. The d
 ## Validation
 
 Run `npm test` using Node.js 22.13 or newer. The repository also contains a GitHub Actions matrix for Windows and Ubuntu. A committed test is not proof of a passing CI run; inspect the run results before deployment.
+
+## Local backup and recovery checks
+
+- `npm run backup` creates an online SQLite snapshot using the built-in SQLite backup API, verifies `PRAGMA integrity_check`, then atomically renames the `.partial` file.
+- `npm run backup:check` lists up to 10 recent local snapshots and checks their integrity without modifying them.
+- `npm run diagnose` checks the main SQLite database, verifies local write access, and reports invalid backups (up to the 100 most recent).
+- The supervisor performs backups on startup and every five hours; by default the 10 most recent backups are retained.
+- Backups live under `data/backups/`. Do not restore a backup over a running database. Stop the server and make an independent copy of the current `data/` folder before any manual restore.
+- No external backup upload is performed.
