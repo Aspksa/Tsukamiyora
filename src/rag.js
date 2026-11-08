@@ -26,6 +26,10 @@ export class KnowledgeIndex {
    this.db.prepare('DELETE FROM rag_chunks WHERE source_id=?').run(id);
    this.db.prepare('DELETE FROM rag_edges WHERE source_id=?').run(id);
    this.db.prepare('DELETE FROM rag_facts WHERE source_id=?').run(id);
+   // Explicitly extracted triples are derived from document text and must be
+   // invalidated atomically whenever the underlying document changes.
+   if(this.db.prepare("SELECT 1 FROM sqlite_master WHERE type='table' AND name='rag_extracted_relations'").get())
+    this.db.prepare('DELETE FROM rag_extracted_relations WHERE source_id=?').run(id);
    this.db.prepare('INSERT INTO rag_sources(id,title,body_hash) VALUES(?,?,?) ON CONFLICT(id) DO UPDATE SET title=excluded.title,body_hash=excluded.body_hash,updated_at=CURRENT_TIMESTAMP').run(id,title,hash);
    const insert=this.db.prepare('INSERT OR IGNORE INTO rag_chunks(id,source_id,position,body,body_hash) VALUES(?,?,?,?,?)');
    parts.forEach((body,i)=>insert.run(digest(id+':'+i),id,i,body,digest(body)));
