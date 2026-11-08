@@ -42,3 +42,12 @@ jobs:
           done
       - name: Run all tests
         run: npm test
+      - name: Write diagnostic summary
+        if: always()
+        shell: bash
+        run: |
+          echo '## RAG CI diagnostics' >> "$GITHUB_STEP_SUMMARY"
+          echo "- Runner: $RUNNER_OS" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Node: $(node --version)" >> "$GITHUB_STEP_SUMMARY"
+          echo "- npm: $(npm --version)" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Commit: $GITHUB_SHA" >> "$GITHUB_STEP_SUMMARY"
