@@ -1,15 +1,21 @@
 // Lightweight periodic read-only knowledge health checks. No network or mutations.
 import {RagKnowledgeGuardian} from './rag-guardian.js';
+import {RagConsolidation} from './rag-consolidation.js';
 export function createGuardianScheduler(db,{intervalMinutes=60,log=()=>{},enabled=true}={}){
  if(!Number.isInteger(intervalMinutes)||intervalMinutes<5||intervalMinutes>1440||typeof log!=='function'||typeof enabled!=='boolean')throw Error('Invalid guardian scheduler options');
  const guardian=new RagKnowledgeGuardian(db);
+ const consolidation=new RagConsolidation(db);
  let timer=null,closed=false,running=false,last=null;
  const run=()=>{
   if(closed||running)return {skipped:true};
   running=true;
   try{
    const report=guardian.inspect({limit:50});
-   last={checkedAt:new Date().toISOString(),summary:report.summary,requiresReview:report.requiresReview};
+   const candidates=consolidation.summarize({limit:50,minSources:2});
+   last={checkedAt:new Date().toISOString(),summary:report.summary,
+    consolidationCandidates:candidates.length,
+    requiresReview:report.requiresReview||candidates.length>0,
+    requiresApproval:true,remoteCalls:0};
    try{log({event:'rag:guardian',...last});}catch{}
    return last;
   }finally{running=false;}
