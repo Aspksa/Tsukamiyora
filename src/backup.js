@@ -22,7 +22,7 @@ export async function backupDatabase({root=process.cwd(),retention=10}={}){
   renameSync(tmp,target);
   // Hash the finished snapshot for tamper/corruption detection.
   const digest=sha256File(target);
-  writeFileSync(target+'.sha256',digest+'\\n',{flag:'wx'});
+  writeFileSync(target+'.sha256',digest+'\n',{flag:'wx'});
  } catch(e) { if(existsSync(tmp))unlinkSync(tmp); throw e; }
  const files=readdirSync(folder).filter(n=>/^tsukamiyora-\d{4}-\d{2}-\d{2}T\d{2}-\d{2}-\d{2}-\d{3}Z(?:-[0-9a-f]{8})?\.sqlite$/.test(n)).sort().reverse();
  // Retain only snapshots produced by this application; do not delete unrelated files.
