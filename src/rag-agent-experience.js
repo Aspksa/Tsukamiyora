@@ -27,7 +27,12 @@ export class RagAgentExperience {
  }
  review({id,approved}={}){
   if(!Number.isSafeInteger(id)||id<1||typeof approved!=='boolean')throw Error('Invalid experience review');
-  const result=this.db.prepare("UPDATE rag_agent_experience SET status=?,reviewed_at=CURRENT_TIMESTAMP WHERE id=? AND status='pending'").run(approved?'approved':'rejected',id);
+  // A review must not approve an outdated proposal after its evidence changed.
+  const result=this.db.prepare(`UPDATE rag_agent_experience SET status=?,reviewed_at=CURRENT_TIMESTAMP
+   WHERE id=? AND status='pending' AND EXISTS(
+    SELECT 1 FROM rag_sources s WHERE s.id=rag_agent_experience.source_id
+     AND substr(s.id,1,5)='file:' AND s.body_hash=rag_agent_experience.source_body_hash
+   )`).run(approved?'approved':'rejected',id);
   return {updated:result.changes===1};
  }
  share({taskKey,limit=10}={}){
