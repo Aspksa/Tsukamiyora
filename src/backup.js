@@ -1,6 +1,7 @@
 import { backup, DatabaseSync } from 'node:sqlite';
 import { existsSync, mkdirSync, readdirSync, unlinkSync, renameSync } from 'node:fs';
 import { join } from 'node:path';
+import { randomUUID } from 'node:crypto';
 export async function backupDatabase({root=process.cwd(),retention=10}={}){
  if(typeof root!=='string'||!root.trim()||!Number.isInteger(retention)||retention<1||retention>100)throw Error('Invalid backup options');
  const source=join(root,'data','tsukamiyora.sqlite');
@@ -8,7 +9,7 @@ export async function backupDatabase({root=process.cwd(),retention=10}={}){
  const folder=join(root,'data','backups');
  mkdirSync(folder,{recursive:true});
  const stamp=new Date().toISOString().replace(/[:.]/g,'-');
- const target=join(folder,`tsukamiyora-${stamp}.sqlite`);
+ const target=join(folder,`tsukamiyora-${stamp}-${randomUUID().slice(0,8)}.sqlite`);
  const tmp=target+'.partial';
  try {
   const db = new DatabaseSync(source);
