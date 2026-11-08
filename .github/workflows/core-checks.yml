@@ -24,3 +24,13 @@ jobs:
         run: npm install --no-package-lock --no-audit --no-fund
       - name: Run core tests
         run: npm run test:core
+  dependency-install:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Validate application dependencies
+        run: npm install --no-package-lock --no-audit --no-fund
