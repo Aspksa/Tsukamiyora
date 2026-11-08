@@ -69,7 +69,7 @@ const ragGuardian=new RagKnowledgeGuardian(db);
 const agentExperience=new RagAgentExperience(db);
 const agentCoordinator=createRagAgentCoordinator(db);
 const agentAcademy=createAgentAcademy(db,agentCoordinator.roles);
-const agentTrainingScheduler=createAgentTrainingScheduler(agentAcademy,{log});
+const agentTrainingScheduler=createAgentTrainingScheduler(agentAcademy,{log:event=>console.error('[agent-training]',event)});
 const memory=new ConversationMemory(db);
 const chatContext=new ChatContext(db);
 const cloud=new CloudRu();
