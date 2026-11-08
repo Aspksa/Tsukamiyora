@@ -18,6 +18,11 @@ a{color:#dfc58b} .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax
 </div>
 <section><h2>Контроль лимитов Cloud.ru</h2><pre id="cloudBudget">Загрузка…</pre></section>
 <section><h2>Эталон качества RAG</h2><pre id="qualityBaseline">Загрузка…</pre></section>
+<section><h2>Контрольные задания по документам</h2>
+<p><small>Запросы остаются локально. Перед утверждением проверьте формулировку и правильный документ.</small></p>
+<button id="draftGenerate">Создать черновики</button> <button id="draftRefresh">Обновить список</button>
+<p id="draftMessage" role="status"></p><div id="draftItems"></div>
+</section>
 <section><h2>Проверка поиска по документам</h2><pre id="agentDocumentBenchmark">Загрузка…</pre><small>Индексация шести учебных документов в изолированной SQLite и оценка поиска.</small></section>
 <section><h2>Проверка возможностей</h2><pre id="agentCapabilities">Загрузка…</pre><small>Восемь локальных проверок памяти, поиска, диагностики и безопасности.</small></section>
 <section><h2>Анализ ошибок</h2><pre id="agentFailures">Загрузка…</pre><small>Причины сбоев и рекомендации без автоматических исправлений.</small></section>
@@ -83,6 +88,50 @@ async function loadPending(){
   }
  }catch(error){target.textContent='Ошибка: '+error.message;}
 }
+async function draftRequest(url,body){
+ const response=await fetch(url,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+ const data=await response.json();if(!response.ok)throw Error(data.error||'HTTP '+response.status);return data;
+}
+async function loadDrafts(){
+ const target=document.getElementById('draftItems');const message=document.getElementById('draftMessage');
+ target.replaceChildren();
+ try{
+  const response=await fetch('/api/rag/agents/academy/documents/drafts',{cache:'no-store'});
+  const data=await response.json();if(!response.ok)throw Error(data.error||'HTTP '+response.status);
+  if(!data.items.length){target.textContent='Черновиков пока нет';return;}
+  for(const item of data.items){
+   const card=document.createElement('div');card.style.padding='10px 0';card.style.borderBottom='1px solid #51452c';
+   const label=document.createElement('p');label.textContent='#'+item.id+' · '+item.source_id+' · '+item.status+(item.source_current?'':' · документ изменён');card.append(label);
+   if(item.status==='pending'){
+    const inspect=document.createElement('button');inspect.textContent='Посмотреть запрос';
+    inspect.addEventListener('click',async()=>{
+     inspect.disabled=true;
+     try{
+      const response=await fetch('/api/rag/agents/academy/documents/drafts/'+item.id,{cache:'no-store'});
+      const detail=await response.json();if(!response.ok)throw Error(detail.error||'HTTP '+response.status);
+      const text=document.createElement('p');text.textContent='Запрос: '+detail.query;card.append(text);
+      for(const [caption,approve] of [['Утвердить',true],['Отклонить',false]]){
+       const button=document.createElement('button');button.textContent=caption;button.style.marginRight='8px';
+       button.disabled=approve&&!item.source_current;
+       button.addEventListener('click',async()=>{
+        button.disabled=true;
+        try{await draftRequest('/api/rag/agents/academy/documents/drafts/review',{id:item.id,approve});message.textContent='Решение сохранено';await loadDrafts();}
+        catch(error){message.textContent='Ошибка: '+error.message;button.disabled=false;}
+       });card.append(button);
+      }
+     }catch(error){message.textContent='Ошибка: '+error.message;inspect.disabled=false;}
+    });card.append(inspect);
+   }target.append(card);
+  }
+ }catch(error){message.textContent='Ошибка: '+error.message;}
+}
+document.getElementById('draftGenerate').addEventListener('click',async()=>{
+ const message=document.getElementById('draftMessage');
+ try{const result=await draftRequest('/api/rag/agents/academy/documents/drafts/generate',{limit:20});message.textContent='Создано: '+result.created;await loadDrafts();}
+ catch(error){message.textContent='Ошибка: '+error.message;}
+});
+document.getElementById('draftRefresh').addEventListener('click',loadDrafts);
+loadDrafts();
 document.getElementById('refresh').addEventListener('click',refresh);
 refresh();
 </script></body></html>
