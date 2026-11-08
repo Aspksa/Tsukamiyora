@@ -29,12 +29,16 @@ export class KnowledgeIndex {
   }catch(e){this.db.exec('ROLLBACK');throw e;}
   this.cache.clear();return {changed:true,chunks:parts.length};
  }
- search(query,{limit=5}={}){
+ search(query,{limit=5,allowedChatSourceIds=null}={}){
   if(typeof query!=='string'||query.length>1000||!Number.isInteger(limit)||limit<1||limit>30)throw Error('Invalid search');
   const terms=tokens(query);if(!terms.length)return [];
 
   const fts=terms.map(t=>'"'+t.replaceAll('"','')+'"').join(' OR ');
-  const rows=this.db.prepare(`SELECT c.id,c.source_id,s.title,c.position,c.body,bm25(rag_fts) AS score FROM rag_fts JOIN rag_chunks c ON c.rowid=rag_fts.rowid JOIN rag_sources s ON s.id=c.source_id WHERE rag_fts MATCH ? ORDER BY score LIMIT ?`).all(fts,Math.min(limit*4,100));
+  // Restrict private chat sources before SQL LIMIT, not after ranking.
+  const allowed=allowedChatSourceIds instanceof Set?[...allowedChatSourceIds].filter(x=>typeof x==='string'&&x.startsWith('chat:')).slice(0,500):[];
+  const chatFilter=allowed.length?'(c.source_id NOT LIKE \'chat:%\' OR c.source_id IN ('+allowed.map(() => '?').join(',')+'))':"c.source_id NOT LIKE 'chat:%'";
+  const sql=`SELECT c.id,c.source_id,s.title,c.position,c.body,bm25(rag_fts) AS score FROM rag_fts JOIN rag_chunks c ON c.rowid=rag_fts.rowid JOIN rag_sources s ON s.id=c.source_id WHERE rag_fts MATCH ? AND ${chatFilter} ORDER BY score LIMIT ?`;
+  const rows=this.db.prepare(sql).all(fts,...allowed,Math.min(limit*4,100));
   const q=new Set(terms);const results=rows.map(r=>({...r,overlap:tokens(r.body).filter(t=>q.has(t)).length})).sort((a,b)=>b.overlap-a.overlap||a.score-b.score).slice(0,limit).map(({overlap,...r})=>({...r,citation:{sourceId:r.source_id,title:r.title,chunkId:r.id}}));
   return results;
  }
