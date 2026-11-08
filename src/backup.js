@@ -1,7 +1,8 @@
 import { backup, DatabaseSync } from 'node:sqlite';
 import { existsSync, mkdirSync, readdirSync, unlinkSync, renameSync, lstatSync } from 'node:fs';
 import { join } from 'node:path';
-import { randomUUID } from 'node:crypto';
+import { randomUUID,createHash } from 'node:crypto';
+import {createReadStream,writeFileSync} from 'node:fs';
 export async function backupDatabase({root=process.cwd(),retention=10}={}){
  if(typeof root!=='string'||!root.trim()||!Number.isInteger(retention)||retention<1||retention>100)throw Error('Invalid backup options');
  const source=join(root,'data','tsukamiyora.sqlite');
@@ -18,12 +19,23 @@ export async function backupDatabase({root=process.cwd(),retention=10}={}){
   try { const integrity=check.prepare('PRAGMA integrity_check').get(); if(Object.values(integrity)[0]!=='ok')throw Error('Backup integrity check failed'); }
   finally { check.close(); }
   renameSync(tmp,target);
+  // Hash the finished snapshot for tamper/corruption detection.
+  const digest=await new Promise((resolve,reject)=>{
+   const hash=createHash('sha256');const stream=createReadStream(target);
+   stream.on('data',chunk=>hash.update(chunk));stream.once('error',reject);
+   stream.once('end',()=>resolve(hash.digest('hex')));
+  });
+  writeFileSync(target+'.sha256',digest+'\\n',{flag:'wx'});
  } catch(e) { if(existsSync(tmp))unlinkSync(tmp); throw e; }
  const files=readdirSync(folder).filter(n=>/^tsukamiyora-\d{4}-\d{2}-\d{2}T\d{2}-\d{2}-\d{2}-\d{3}Z(?:-[0-9a-f]{8})?\.sqlite$/.test(n)).sort().reverse();
  // Retain only snapshots produced by this application; do not delete unrelated files.
  for(const old of files.slice(retention)){
   const path=join(folder,old);
-  if(lstatSync(path).isFile())unlinkSync(path);
+  if(lstatSync(path).isFile()){
+   unlinkSync(path);
+   const sidecar=path+'.sha256';
+   if(existsSync(sidecar)&&lstatSync(sidecar).isFile())unlinkSync(sidecar);
+  }
  }
  return target;
 }
