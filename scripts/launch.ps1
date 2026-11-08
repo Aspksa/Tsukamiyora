@@ -71,7 +71,7 @@ try {
   $explicit = [bool]$env:TSUKAMIYORA_PORT
   if (Healthy $port) {
     Log "Existing server healthy on port $port"
-    Start-Process "http://127.0.0.1:$port/"
+    if (-not $env:CI) { Start-Process "http://127.0.0.1:$port/" }
     exit 0
   }
   if (-not $explicit) {
@@ -120,7 +120,7 @@ try {
   }
   if (-not $ready) { throw 'Server failed health check; inspect logs/server-stderr.log' }
   Log 'Health check passed'
-  Start-Process "http://127.0.0.1:$port/"
+  if (-not $env:CI) { Start-Process "http://127.0.0.1:$port/" }
   exit 0
 } catch {
   Log "ERROR: $($_.Exception.Message)"
