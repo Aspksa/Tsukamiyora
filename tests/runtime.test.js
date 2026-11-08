@@ -53,3 +53,20 @@ test('queue capacity and priority validation',async()=>{
  assert.equal(q.tasks.size,1);
  q.close();
 });
+
+test('queue close prevents new work and cancels pending jobs',async()=>{
+ const q=new TaskQueue({concurrency:1,capacity:3});
+ const first=q.submit('sum',Array.from({length:100000},()=>1));
+ const second=q.submit('sum',[1]);
+ assert.equal(q.get(second).status,'queued');
+ q.close();
+ assert.equal(q.get(second).status,'failed');
+ assert.equal(q.get(second).payload,undefined);
+ assert.throws(()=>q.submit('sum',[2]),/unavailable/);
+ const deadline=Date.now()+5000;
+ while(q.active>0){
+  if(Date.now()>deadline)throw Error('worker shutdown timeout');
+  await new Promise(resolve=>setTimeout(resolve,20));
+ }
+ assert.ok(['done','failed'].includes(q.get(first).status));
+});
