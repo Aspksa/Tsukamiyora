@@ -17,7 +17,13 @@ function Healthy([int]$port) {
 }
 function Find-Node {
   $portable = Join-Path $root '.runtime\node\node.exe'
-  if (Test-Path -LiteralPath $portable) { return $portable }
+  if (Test-Path -LiteralPath $portable) {
+    try {
+      $portableVersion = (& $portable -p 'process.versions.node').Trim()
+      if ($LASTEXITCODE -eq 0 -and [version]$portableVersion -ge [version]'22.13.0') { return $portable }
+      Log "Outdated portable Node.js: $portableVersion"
+    } catch { Log 'Portable Node.js validation failed; searching another runtime' }
+  }
   $cmd = Get-Command node.exe -ErrorAction SilentlyContinue
   if ($cmd) {
     $v = & $cmd.Source -p 'process.versions.node'
@@ -77,10 +83,10 @@ try {
       }
     }
   }
-  $used = Get-NetTCPConnection -State Listen -ErrorAction SilentlyContinue | Select-Object -ExpandProperty LocalPort
+  $used = @(Get-NetTCPConnection -State Listen -ErrorAction SilentlyContinue | Select-Object -ExpandProperty LocalPort)
   if ($port -in $used) {
     if ($explicit) { throw "Requested port $port is occupied" }
-    $free = 4178..4277 | Where-Object { $_ -notin $used } | Select-Object -First 1
+    $free = @(4178..4277 | Where-Object { $_ -notin $used } | Select-Object -First 1)[0]
     if (-not $free) { throw 'No free port in range 4177-4277' }
     $port = $free
   }
