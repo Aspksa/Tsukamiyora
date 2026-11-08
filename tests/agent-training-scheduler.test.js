@@ -14,7 +14,7 @@ test('scheduler runs eight real offline practices once and skips repeats',()=>{
   const first=scheduler.run();
   assert.equal(first.results.filter(x=>x.status==='completed').length,8);
   const second=scheduler.run();
-  assert.equal(second.results.filter(x=>x.status==='already_trained').length,3);
+  assert.equal(second.results.filter(x=>x.status==='already_trained').length,8);
   assert.equal(academy.profiles().reduce((sum,p)=>sum+p.attempts,0),8);
   assert.equal(scheduler.status().cloudCalls,0);
   scheduler.stop();
