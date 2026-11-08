@@ -38,6 +38,7 @@ import { availableAgentExams, gradeAgentExam } from './agent-exams.js';
 import { availableAgentPractice, runAgentPractice } from './agent-practice.js';
 import { createAgentTrainingScheduler } from './agent-training-scheduler.js';
 import { buildAgentDevelopmentPlan, summarizeAgentDevelopment } from './agent-development.js';
+import { createAgentTaskEngine } from './agent-task-engine.js';
 import { diagnoseAgents } from './rag-agent-diagnostics.js';
 import { assessCloudBudget } from './cloud-budget.js';
 import { createRagQualityMonitor } from './rag-quality-monitor.js';
@@ -70,6 +71,20 @@ const ragGuardian=new RagKnowledgeGuardian(db);
 const agentExperience=new RagAgentExperience(db);
 const agentCoordinator=createRagAgentCoordinator(db);
 const agentAcademy=createAgentAcademy(db,agentCoordinator.roles);
+const agentTasks=createAgentTaskEngine(db,{roles:agentCoordinator.roles,handlers:{
+ 'auditor:pending':()=>agentCoordinator.auditPending(),
+ 'auditor:activity':()=>agentCoordinator.activity({limit:20}),
+ 'mentor:profiles':()=>agentAcademy.profiles(),
+ 'mentor:development':()=>summarizeAgentDevelopment(agentAcademy.profiles()),
+ 'rag_evaluator:practice':()=>runAgentPractice('rag_evaluator'),
+ 'diagnostician:practice':()=>runAgentPractice('diagnostician'),
+ 'cloud_economist:practice':()=>runAgentPractice('cloud_economist'),
+ 'security_engineer:practice':()=>runAgentPractice('security_engineer'),
+ 'index_engineer:practice':()=>runAgentPractice('index_engineer'),
+ 'quality_controller:practice':()=>runAgentPractice('quality_controller'),
+ 'tester:practice':()=>runAgentPractice('tester'),
+ 'performance_analyst:practice':()=>runAgentPractice('performance_analyst')
+}});
 const agentTrainingScheduler=createAgentTrainingScheduler(agentAcademy,{log:event=>console.error('[agent-training]',event)});
 const memory=new ConversationMemory(db);
 const chatContext=new ChatContext(db);
@@ -185,6 +200,10 @@ app.post('/api/rag/agents/experience',async(req,reply)=>{try{const result=agentE
 app.post('/api/rag/agents/experience/review',async(req,reply)=>{try{return agentExperience.review(req.body??{});}catch(e){reply.code(400);return {error:e.message};}});
 app.get('/api/rag/agents/coordinator/diagnostics',async()=>diagnoseAgents({activity:agentCoordinator.activity({limit:100}),queue:agentCoordinator.status().queue,cloud:cloud.usageMetrics()}));
 app.get('/api/rag/agents/coordinator/activity',async(req,reply)=>{try{return {items:agentCoordinator.activity({limit:Number(req.query?.limit??30)})};}catch(e){reply.code(400);return {error:e.message};}});
+app.get('/api/rag/agents/tasks/status',async()=>agentTasks.status());
+app.get('/api/rag/agents/tasks',async(req,reply)=>{try{return {items:agentTasks.list({limit:Number(req.query?.limit??30)})};}catch(e){reply.code(400);return {error:e.message};}});
+app.post('/api/rag/agents/tasks',async(req,reply)=>{try{reply.code(201);return agentTasks.submit(req.body??{});}catch(e){reply.code(400);return {error:e.message};}});
+app.post('/api/rag/agents/tasks/run',async(req,reply)=>{try{return await agentTasks.execute({limit:Number(req.body?.limit??3)});}catch(e){reply.code(400);return {error:e.message};}});
 app.get('/api/rag/agents/academy/development',async()=>summarizeAgentDevelopment(agentAcademy.profiles()));
 app.get('/api/rag/agents/academy/development/:role',async(req,reply)=>{try{return buildAgentDevelopmentPlan(agentAcademy.profile(req.params.role));}catch(e){reply.code(400);return {error:e.message};}});
 app.get('/api/rag/agents/academy/scheduler',async()=>agentTrainingScheduler.status());
