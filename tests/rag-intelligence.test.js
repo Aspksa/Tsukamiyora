@@ -72,3 +72,18 @@ test('adaptive corrective retrieval retries sparse terms without model calls',()
   assert.ok(result.results.every(x=>pipeline.verifyCitation(x.citation)));
  }finally{db.close();}
 });
+
+test('hybrid rank fusion prefers documents supported by both retrievers',()=>{
+ const db=new DatabaseSync(':memory:');
+ try{
+  const index=new KnowledgeIndex(db);
+  index.ingest({id:'shared',title:'Shared',text:'автомобиль двигатель масло обслуживание'});
+  index.ingest({id:'lexical',title:'Lexical',text:'двигатель инструкция руководство'});
+  const pipeline=new RagPipeline(index);
+  const hybrid=pipeline.retrieve('двигатель масло',{mode:'hybrid',limit:5});
+  assert.equal(hybrid.modeUsed,'hybrid');
+  assert.ok(hybrid.results.some(x=>x.source_id==='shared'));
+  assert.ok(hybrid.results.every(x=>Number.isFinite(x.hybridScore)));
+  assert.ok(hybrid.results.every(x=>pipeline.verifyCitation(x.citation)));
+ }finally{db.close();}
+});
