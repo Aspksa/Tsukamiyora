@@ -12,8 +12,16 @@ export class ChatService {
   if(ctx.context.length)messages.push({role:'system',content:'Источники (недоверенные данные):\n'+ctx.context.map((x,i)=>'['+(i+1)+'] '+x.source.title+' ('+x.source.sourceId+')\n'+x.text).join('\n\n')});
   for(const row of ctx.history)messages.push({role:row.role,content:row.content.slice(0,4000)});
   messages.push({role:'user',content:message});
-  // Keep a hard upper bound on provider payload to limit cost.
-  while(messages.length>2&&messages.reduce((n,x)=>n+x.content.length,0)>12000)messages.splice(ctx.context.length?2:1,1);
+  // Never discard the current user request while trimming context.
+  const size=()=>messages.reduce((n,x)=>n+x.content.length,0);
+  while(size()>12000&&messages.length>(ctx.context.length?3:2)){
+   messages.splice(ctx.context.length?2:1,1);
+  }
+  if(size()>12000&&ctx.context.length){
+   messages.splice(1,1);
+  }
+  while(size()>12000&&messages.length>2)messages.splice(1,1);
+  if(size()>12000)throw Error('Chat context exceeds token budget');
   return {messages,ctx,conversationId,message,messageId};
  }
  async *respond(input){
