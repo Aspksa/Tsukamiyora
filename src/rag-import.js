@@ -14,11 +14,11 @@ export function indexDirectory(db,folder,{maxFiles=2000,maxBytes=1024*1024}={}){
   let entries;
   try{entries=readdirSync(dir,{withFileTypes:true});}catch{skipped++;continue;}
   for(const entry of entries){
-   if(scanned>=maxFiles){truncated=true;break;}
    if(entry.isSymbolicLink()||entry.name.startsWith('.'))continue;
    const path=join(dir,entry.name);
    if(entry.isDirectory()){pending.push(path);continue;}
    if(!entry.isFile()||!TYPES.has(extname(entry.name).toLowerCase()))continue;
+   if(scanned>=maxFiles){truncated=true;break;}
    scanned++;
    try{
     const info=statSync(path);if(info.size>maxBytes){skipped++;continue;}
