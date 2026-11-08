@@ -50,3 +50,19 @@ test('reindex invalidates obsolete graph edges and graph retrieval',()=>{
   assert.equal(new GraphAwareRag(index).retrieve('Двигатель').graph.edges.length,0);
  }finally{db.close();}
 });
+
+test('graph evidence survives when lexical results fill the result limit',()=>{
+ const db=new DatabaseSync(':memory:');
+ try{
+  const index=new KnowledgeIndex(db),relations=new RagRelationGraph(db);
+  index.ingest({id:'file:a',title:'A',text:'Двигатель -> использует -> Масло'});
+  index.ingest({id:'file:b',title:'B',text:'Масло -> имеет -> Вязкость'});
+  index.ingest({id:'file:c',title:'C',text:'Двигатель проверка обслуживание'});
+  relations.extract({sourceId:'file:a'});
+  relations.extract({sourceId:'file:b'});
+  const result=new GraphAwareRag(index).retrieve('Двигатель',{limit:2,maxHops:2});
+  assert.equal(result.results.length,2);
+  assert.ok(result.results.some(hit=>hit.graphEvidence));
+  assert.ok(result.results.every(hit=>hit.citation?.chunkId===hit.id));
+ }finally{db.close();}
+});
