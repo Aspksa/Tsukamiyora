@@ -8,8 +8,8 @@ export class ChatContext {
   if(typeof conversationId!=='string'||!conversationId.trim()||conversationId.length>200)throw Error('Invalid conversation');
   if(!Number.isInteger(historyLimit)||historyLimit<1||historyLimit>50||!Number.isInteger(sourceLimit)||sourceLimit<1||sourceLimit>20||!Number.isInteger(maxChars)||maxChars<500||maxChars>16000)throw Error('Invalid context options');
   const history=this.memory.history(conversationId,{limit:historyLimit});
-  const retrieval=this.pipeline.retrieve(query,{limit:Math.min(30,sourceLimit*3)});
   const allowedChatIds=new Set(this.memory.db.prepare('SELECT id FROM rag_messages WHERE conversation_id=?').all(conversationId).map(row=>'chat:'+row.id));
+  const retrieval=this.pipeline.retrieve(query,{limit:Math.min(30,sourceLimit*3),allowedChatSourceIds:allowedChatIds});
   const context=[];const seen=new Set();let remaining=maxChars;
   for(const hit of retrieval.results){
    if(context.length>=sourceLimit||remaining<=0)break;
