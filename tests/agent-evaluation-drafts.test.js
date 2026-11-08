@@ -16,6 +16,9 @@ test('drafts are local, deduplicated, reviewed and invalidated when source chang
   assert.equal('query' in items[0],false);
   const first=drafts.detail(items[0].id);
   assert.equal(typeof first.query,'string');
+  assert.equal(first.status,'pending');
+  assert.throws(()=>drafts.detail(-1),/Invalid draft id/);
+  assert.throws(()=>drafts.detail(999999),/Draft not found/);
   drafts.review({id:first.id,approve:true});
   assert.equal(drafts.approved().length,1);
   const other=items.find(x=>x.id!==first.id);
