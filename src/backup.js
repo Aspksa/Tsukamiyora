@@ -1,8 +1,8 @@
 import { backup, DatabaseSync } from 'node:sqlite';
-import { existsSync, mkdirSync, readdirSync, statSync, unlinkSync, renameSync } from 'node:fs';
+import { existsSync, mkdirSync, readdirSync, unlinkSync, renameSync } from 'node:fs';
 import { join } from 'node:path';
-const root=process.cwd();
-export async function backupDatabase(){
+export async function backupDatabase({root=process.cwd(),retention=10}={}){
+ if(typeof root!=='string'||!root.trim()||!Number.isInteger(retention)||retention<1||retention>100)throw Error('Invalid backup options');
  const source=join(root,'data','tsukamiyora.sqlite');
  if(!existsSync(source)) return 'skipped: no database yet';
  const folder=join(root,'data','backups');
@@ -19,7 +19,7 @@ export async function backupDatabase(){
   renameSync(tmp,target);
  } catch(e) { if(existsSync(tmp))unlinkSync(tmp); throw e; }
  const files=readdirSync(folder).filter(n=>/^tsukamiyora-.*\.sqlite$/.test(n)).sort().reverse();
- for(const old of files.slice(10)) unlinkSync(join(folder,old));
+ for(const old of files.slice(retention)) unlinkSync(join(folder,old));
  return target;
 }
 if(process.argv.includes('--run-backup')){
