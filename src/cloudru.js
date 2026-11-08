@@ -59,9 +59,9 @@ export class CloudRu {
    buffer+=decoder.decode(chunk,{stream:true});
    if(buffer.length>1048576)throw Error('Cloud.ru stream overflow');
    let boundary;
-   while((boundary=buffer.indexOf('\\n\\n'))>=0){
-    const frame=buffer.slice(0,boundary).replaceAll('\\r','');buffer=buffer.slice(boundary+2);
-    const data=frame.split('\\n').filter(line=>line.startsWith('data:')).map(line=>line.slice(5).trim()).join('');
+   while((boundary=buffer.indexOf('\n\n'))>=0){
+    const frame=buffer.slice(0,boundary).replaceAll('\r','');buffer=buffer.slice(boundary+2);
+    const data=frame.split('\n').filter(line=>line.startsWith('data:')).map(line=>line.slice(5).trim()).join('');
     if(!data)continue;
     if(data==='[DONE]'){finished=true;break;}
     let parsed;try{parsed=JSON.parse(data);}catch{throw Error('Invalid Cloud.ru stream frame');}
