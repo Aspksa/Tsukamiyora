@@ -1,5 +1,5 @@
 import { sep } from 'node:path';
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, writeFileSync, realpathSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { indexDirectory } from './rag-import.js';
 import { createRagWorkQueue } from './rag-work-queue.js';
@@ -28,8 +28,13 @@ export function createAutoIndexer(db,{root=process.cwd(),log=()=>{}}={}){
    for(const folder of cfg.folders){
     const path=resolve(root,folder);
     if(path!==resolve(root)&&!path.startsWith(resolve(root)+sep)){results.push({folder,error:'folder outside project root'});continue;}
-    if(!existsSync(path)){if(path===join(root,'data','library'))mkdirSync(path,{recursive:true});else {results.push({folder,error:'folder not found'});continue;}}
-    try{results.push({folder,...indexDirectory(db,path,{maxFiles:cfg.maxFiles,maxBytes:cfg.maxBytes})});}
+    if(!existsSync(path)){if(path===resolve(root,'data','library'))mkdirSync(path,{recursive:true});else {results.push({folder,error:'folder not found'});continue;}}
+    try{
+     const actualRoot=realpathSync(root),actualPath=realpathSync(path);
+     if(actualPath!==actualRoot&&!actualPath.startsWith(actualRoot+sep)){
+      results.push({folder,error:'folder resolves outside project root'});continue;
+     }
+     results.push({folder,...indexDirectory(db,path,{maxFiles:cfg.maxFiles,maxBytes:cfg.maxBytes})});}
     catch(error){results.push({folder,error:String(error)});}
    }
    last={at:new Date().toISOString(),results};runCount++;
