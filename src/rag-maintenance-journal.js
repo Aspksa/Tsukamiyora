@@ -14,12 +14,16 @@ export class RagMaintenanceJournal {
  record({summary,consolidationCandidates=0,requiresReview=false}={}){
   const counts=[summary?.conflicts,summary?.stale,summary?.unsupported,summary?.danglingTopicLinks,consolidationCandidates];
   if(!counts.every(n=>Number.isSafeInteger(n)&&n>=0&&n<=1000000)||typeof requiresReview!=='boolean')throw Error('Invalid maintenance report');
+  this.db.exec('SAVEPOINT rag_journal_write');
+  try{
   const result=this.db.prepare(`INSERT INTO rag_maintenance_journal
    (conflicts,stale,unsupported,dangling,consolidation_candidates,requires_review)
    VALUES(?,?,?,?,?,?)`).run(...counts,requiresReview?1:0);
   // Bounded retention; latest 500 checks remain.
   this.db.prepare('DELETE FROM rag_maintenance_journal WHERE id NOT IN (SELECT id FROM rag_maintenance_journal ORDER BY id DESC LIMIT 500)').run();
+  this.db.exec('RELEASE SAVEPOINT rag_journal_write');
   return {id:Number(result.lastInsertRowid)};
+  }catch(error){this.db.exec('ROLLBACK TO SAVEPOINT rag_journal_write');this.db.exec('RELEASE SAVEPOINT rag_journal_write');throw error;}
  }
  recent({limit=20}={}){
   if(!Number.isInteger(limit)||limit<1||limit>100)throw Error('Invalid journal limit');
