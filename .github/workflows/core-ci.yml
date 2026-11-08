@@ -23,6 +23,9 @@ jobs:
         with:
           name: generated-package-lock
           path: package-lock.json
+      - run: node --check src/server.js
+      - run: node --check src/supervisor.js
+      - run: node --check scripts/restore.js
       - run: node --test
       - run: node scripts/diagnose.js
       - run: node src/backup.js --run-backup
