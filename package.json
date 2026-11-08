@@ -1,14 +1,19 @@
 {
   "name": "tsukamiyora-core",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "private": true,
   "type": "module",
   "engines": {
     "node": ">=22.13.0"
   },
   "scripts": {
-    "start": "node src/server.js",
+    "start": "node src/supervisor.js",
     "test": "node --test",
-    "diagnose": "node scripts/diagnose.js"
+    "diagnose": "node scripts/diagnose.js",
+    "backup": "node src/backup.js --run-backup"
+  },
+  "dependencies": {
+    "fastify": "^5.0.0",
+    "@fastify/websocket": "^11.0.0"
   }
 }
