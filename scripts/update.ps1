@@ -45,6 +45,16 @@ try {
     if ($LASTEXITCODE -ne 0) { throw 'New revision tests failed' }
   } finally { Pop-Location }
   Git -argsList @('merge','--ff-only','origin/main') | Out-Null
+  try {
+    & $node --check src/server.js
+    if ($LASTEXITCODE -ne 0) { throw 'Post-update server syntax failed' }
+    & $node --check src/supervisor.js
+    if ($LASTEXITCODE -ne 0) { throw 'Post-update supervisor syntax failed' }
+  } catch {
+    Write-Warning "Update validation failed. Rolling code back to $before"
+    Git -argsList @('reset','--hard',$before) | Out-Null
+    throw
+  }
   Write-Host "Update installed: $target"
   Write-Host "Previous revision: $before"
 } finally {
