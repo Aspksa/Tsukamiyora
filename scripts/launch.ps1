@@ -49,7 +49,11 @@ function Find-Node {
   Move-Item -LiteralPath $source -Destination $target
   return (Join-Path $target 'node.exe')
 }
+$mutex = New-Object System.Threading.Mutex($false, 'Local\TsukamiyoraCoreLauncher')
+$locked = $false
 try {
+  $locked = $mutex.WaitOne(0)
+  if (-not $locked) { Log 'Another launcher is already starting. Wait and retry.'; exit 0 }
   $node = Find-Node
   $version = (& $node -p 'process.versions.node').Trim()
   if ($LASTEXITCODE -ne 0 -or [version]$version -lt [version]'22.13.0') { throw "Node.js 22.13+ required, found $version" }
@@ -63,6 +67,15 @@ try {
     Log "Existing server healthy on port $port"
     Start-Process "http://127.0.0.1:$port/"
     exit 0
+  }
+  if (-not $explicit) {
+    foreach ($candidate in 4178..4277) {
+      if (Healthy $candidate) {
+        Log "Existing Tsukamiyora instance found on port $candidate"
+        Start-Process "http://127.0.0.1:$candidate/"
+        exit 0
+      }
+    }
   }
   $used = Get-NetTCPConnection -State Listen -ErrorAction SilentlyContinue | Select-Object -ExpandProperty LocalPort
   if ($port -in $used) {
@@ -90,4 +103,7 @@ try {
 } catch {
   Log "ERROR: $($_.Exception.Message)"
   exit 1
+} finally {
+  if ($locked) { $mutex.ReleaseMutex() }
+  $mutex.Dispose()
 }
