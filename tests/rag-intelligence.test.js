@@ -33,3 +33,27 @@ test('temporal facts, conflicts, graph and feedback',()=>{
   assert.equal(intel.metrics().factEvents,2);
  }finally{db.close();}
 });
+
+test('vector model version and dimensions trigger safe reindex',()=>{
+ const db=new DatabaseSync(':memory:');
+ try{
+  const index=new KnowledgeIndex(db);
+  index.ingest({id:'doc',title:'Document',text:'память память память система'});
+  const first=new RagIntelligence(db,{dimensions:128});
+  assert.equal(first.sync().indexed,1);
+  assert.equal(new RagIntelligence(db,{dimensions:128}).sync().indexed,0);
+  const upgraded=new RagIntelligence(db,{dimensions:256});
+  assert.equal(upgraded.sync().indexed,1);
+  assert.equal(upgraded.semantic('память')[0].source_id,'doc');
+  assert.throws(()=>new RagIntelligence(db,{dimensions:0}),/Invalid vector dimensions/);
+ }finally{db.close();}
+});
+test('RAG feedback cannot reference a nonexistent source',()=>{
+ const db=new DatabaseSync(':memory:');
+ try{
+  new KnowledgeIndex(db);
+  const intel=new RagIntelligence(db);
+  assert.throws(()=>intel.rate({query:'hello',sourceId:'missing',helpful:true}),/Source not found/);
+  assert.equal(intel.metrics().ratings,0);
+ }finally{db.close();}
+});
