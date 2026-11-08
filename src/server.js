@@ -32,6 +32,7 @@ import { createGuardianScheduler } from './rag-guardian-scheduler.js';
 import { evaluateRag, compareRag } from './rag-evaluation.js';
 import { createAutoIndexer } from './rag-auto.js';
 import { RagAgentExperience } from './rag-agent-experience.js';
+import { inspectBackups } from './backup-inspect.js';
 import { tasks, metrics, modules, events } from './runtime.js';
 import { mkdirSync, appendFileSync, readFileSync } from 'node:fs';
 const app=Fastify({logger:false,bodyLimit:1048576});
@@ -161,6 +162,7 @@ app.post('/api/rag/knowledge/gaps',async(req,reply)=>{try{return ragKnowledgeGap
 app.post('/api/rag/plan',async(req,reply)=>{try{return planRag(req.body?.query,{maxSteps:req.body?.maxSteps??4});}catch(e){reply.code(400);return {error:e.message};}});
 app.get('/api/rag/guardian/history',async(req,reply)=>{try{return {items:guardianScheduler.history({limit:Number(req.query?.limit??20)})};}catch(e){reply.code(400);return {error:e.message};}});
 app.get('/api/rag/indexer/status',async()=>autoIndex.status());
+app.get('/api/system/backups',async(req,reply)=>{try{return {items:inspectBackups({limit:Number(req.query?.limit??10)})};}catch(e){reply.code(400);return {error:e.message};}});
 app.post('/api/rag/agents/experience',async(req,reply)=>{try{const result=agentExperience.propose(req.body??{});reply.code(201);return result;}catch(e){reply.code(400);return {error:e.message};}});
 app.post('/api/rag/agents/experience/review',async(req,reply)=>{try{return agentExperience.review(req.body??{});}catch(e){reply.code(400);return {error:e.message};}});
 app.get('/api/rag/agents/experience/reviews',async(req,reply)=>{try{return {items:agentExperience.reviewHistory({limit:Number(req.query?.limit??30)})};}catch(e){reply.code(400);return {error:e.message};}});
