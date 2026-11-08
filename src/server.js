@@ -6,6 +6,7 @@ import { RagPipeline } from './rag-pipeline.js';
 import { ConversationMemory } from './rag-memory.js';
 import { ChatContext } from './chat-context.js';
 import { CloudRu } from './cloudru.js';
+import { ChatService } from './chat-service.js';
 import { createAutoIndexer } from './rag-auto.js';
 import { tasks, metrics, modules, events } from './runtime.js';
 import { mkdirSync, appendFileSync, readFileSync } from 'node:fs';
@@ -17,6 +18,7 @@ const ragPipeline=new RagPipeline(rag);
 const memory=new ConversationMemory(db);
 const chatContext=new ChatContext(db);
 const cloud=new CloudRu();
+const chatService=new ChatService(db,cloud);
 mkdirSync('logs',{recursive:true});
 const log=(message)=>appendFileSync('logs/core.jsonl',JSON.stringify({at:new Date().toISOString(),message})+'\n');
 const autoIndex=createAutoIndexer(db,{log});
@@ -29,6 +31,18 @@ app.addHook('onRequest',async(req,reply)=>{
   }
  }
 });
+app.get('/chat',async(req,reply)=>{reply.type('text/html; charset=utf-8');return readFileSync(new URL('../public/chat.html',import.meta.url),'utf8');});
+app.post('/api/chat/stream',async(req,reply)=>{
+ let generator;
+ try{generator=chatService.respond(req.body??{});const first=await generator.next();
+  reply.hijack();reply.raw.writeHead(200,{'Content-Type':'text/event-stream; charset=utf-8','Cache-Control':'no-cache','X-Accel-Buffering':'no'});
+  const send=item=>reply.raw.write('data: '+JSON.stringify(item)+'\\n\\n');
+  if(!first.done)send(first.value);
+  try{for await(const event of generator)send(event);}
+  catch(e){send({type:'error',error:e.message});}
+  reply.raw.end();
+ }catch(e){reply.code(400);return {error:e.message};}
+});
 app.get('/settings',async(req,reply)=>{reply.type('text/html; charset=utf-8');return readFileSync(new URL('../public/settings.html',import.meta.url),'utf8');});
 app.get('/api/cloud/settings',async()=>cloud.publicSettings());
 app.post('/api/cloud/settings',async(req,reply)=>{try{return cloud.save(req.body??{});}catch(e){reply.code(400);return {error:e.message};}});
@@ -37,7 +51,7 @@ app.post('/api/cloud/test',async(req,reply)=>{try{return await cloud.testModel()
 app.post('/api/cloud/chat',async(req,reply)=>{try{const response=await cloud.complete(req.body?.messages);return {message:response.choices?.[0]?.message??null,usage:response.usage??null};}catch(e){reply.code(e.status||503);return {error:e.message};}});
 app.get('/health',async()=>{db.prepare('SELECT 1').get();return {status:'ok',service:'tsukamiyora-core',version:'0.3.0',database:'ok'};});
 app.get('/',async()=>({name:'Tsukamiyora Core',status:'running',settings:'/settings',endpoints:['/health','/api/events','/api/metrics','/api/modules','/api/tasks','/api/rag/search','/api/rag/documents','/api/rag/context','/api/rag/status','/ws']}));
-app.get('/api/metrics',async()=>metrics());
+app.get('/api/metrics',async()=>({...metrics(),chat:chatService.metrics()}));
 app.get('/api/modules',async()=>({modules:modules()}));
 app.post('/api/tasks',async(req,reply)=>{
  const {kind,payload,priority=0}=req.body??{};
