@@ -54,3 +54,18 @@ test('guardian discovers consolidation candidates without changing source eviden
   scheduler.stop();
  }finally{db.close();}
 });
+
+test('guardian persists bounded health history without document text',()=>{
+ const db=new DatabaseSync(':memory:');
+ try{
+  const scheduler=createGuardianScheduler(db);
+  scheduler.run();
+  const rows=scheduler.history({limit:5});
+  assert.equal(rows.length,1);
+  assert.equal(rows[0].requires_review,0);
+  assert.equal(rows[0].consolidation_candidates,0);
+  assert.equal(Object.hasOwn(rows[0],'body'),false);
+  assert.throws(()=>scheduler.history({limit:101}),/Invalid journal limit/);
+  scheduler.stop();
+ }finally{db.close();}
+});
