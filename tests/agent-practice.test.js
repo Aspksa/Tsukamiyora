@@ -4,7 +4,7 @@ import {DatabaseSync} from 'node:sqlite';
 import {availableAgentPractice,runAgentPractice} from '../src/agent-practice.js';
 import {createAgentAcademy} from '../src/agent-academy.js';
 test('offline practical agents execute real local functions',()=>{
- assert.equal(availableAgentPractice().length,3);
+ assert.equal(availableAgentPractice().length,8);
  for(const task of availableAgentPractice()){
   const result=runAgentPractice(task.role);
   assert.equal(result.passed,true,task.role);
