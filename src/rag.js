@@ -57,6 +57,8 @@ export class KnowledgeIndex {
    this.db.prepare('DELETE FROM rag_chunks WHERE source_id=?').run(id);
    this.db.prepare('DELETE FROM rag_edges WHERE source_id=?').run(id);
    this.db.prepare('DELETE FROM rag_facts WHERE source_id=?').run(id);
+   if(this.db.prepare("SELECT 1 FROM sqlite_master WHERE type='table' AND name='rag_extracted_relations'").get())
+    this.db.prepare('DELETE FROM rag_extracted_relations WHERE source_id=?').run(id);
    const result=this.db.prepare('DELETE FROM rag_sources WHERE id=?').run(id);
    this.db.exec('RELEASE SAVEPOINT rag_index_write');this.cache.clear();return result.changes>0;
   }catch(error){this.db.exec('ROLLBACK TO SAVEPOINT rag_index_write');this.db.exec('RELEASE SAVEPOINT rag_index_write');throw error;}
