@@ -5,6 +5,7 @@ import {KnowledgeIndex} from '../src/rag.js';
 import {KnowledgeLifecycle} from '../src/rag-lifecycle.js';
 import {RagFactReview} from '../src/rag-fact-review.js';
 import {planRag} from '../src/rag-planner.js';
+import {MultiStepRag} from '../src/rag-multistep.js';
 
 test('fact review flags conflicts and preserves citations without overwriting facts',()=>{
  const db=new DatabaseSync(':memory:');
@@ -30,4 +31,18 @@ test('query planner splits bounded steps without remote requests',()=>{
  assert.equal(plan.remoteCalls,0);
  assert.equal(plan.applied,false);
  assert.throws(()=>planRag('x',{maxSteps:100}));
+});
+
+test('multi-step retrieval executes planned subqueries without private chat leakage',()=>{
+ const db=new DatabaseSync(':memory:');
+ try{
+  const index=new KnowledgeIndex(db);
+  index.ingest({id:'file:engine',title:'Engine',text:'двигатель диагностика'});
+  index.ingest({id:'chat:secret',title:'Private',text:'двигатель секрет'});
+  const result=new MultiStepRag(index).search('сравни двигатель и диагностика',{maxSteps:3});
+  assert.equal(result.planKind,'comparison');
+  assert.equal(result.remoteCalls,0);
+  assert.ok(result.results.some(x=>x.source_id==='file:engine'));
+  assert.ok(result.results.every(x=>!x.source_id.startsWith('chat:')));
+ }finally{db.close();}
 });
