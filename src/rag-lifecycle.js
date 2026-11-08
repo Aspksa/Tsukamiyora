@@ -7,7 +7,8 @@ export class KnowledgeLifecycle {
    source_id TEXT NOT NULL,chunk_id TEXT NOT NULL,subject TEXT NOT NULL,predicate TEXT NOT NULL,
    value TEXT NOT NULL,confidence REAL NOT NULL,verified_at TEXT DEFAULT CURRENT_TIMESTAMP,
    PRIMARY KEY(source_id,chunk_id,subject,predicate,value)
-  );`);
+  );
+  CREATE TABLE IF NOT EXISTS rag_fact_history(id INTEGER PRIMARY KEY AUTOINCREMENT,subject TEXT NOT NULL,predicate TEXT NOT NULL,value TEXT NOT NULL,source_id TEXT NOT NULL,recorded_at TEXT DEFAULT CURRENT_TIMESTAMP);`);
  }
  extract({sourceId,limit=100}={}){
   if(typeof sourceId!=='string'||!sourceId.trim()||sourceId.length>200||!Number.isInteger(limit)||limit<1||limit>500)throw Error('Invalid extraction options');
@@ -16,6 +17,8 @@ export class KnowledgeLifecycle {
   const chunks=this.db.prepare('SELECT id,body FROM rag_chunks WHERE source_id=? ORDER BY position LIMIT ?').all(sourceId,limit);
   const total=this.db.prepare('SELECT COUNT(*) AS n FROM rag_chunks WHERE source_id=?').get(sourceId).n;
   if(total>limit)throw Error('Extraction would be partial; increase limit');
+  const previous=this.db.prepare('SELECT chunk_id,subject,predicate,value FROM rag_evidence WHERE source_id=?').all(sourceId);
+  const previousKeys=new Set(previous.map(x=>JSON.stringify([x.chunk_id,x.subject,x.predicate,x.value])));
   const add=this.db.prepare('INSERT OR IGNORE INTO rag_evidence(source_id,chunk_id,subject,predicate,value,confidence) VALUES(?,?,?,?,?,?)');
   const fact=this.db.prepare('INSERT OR IGNORE INTO rag_facts(subject,predicate,value,source_id) VALUES(?,?,?,?)');
   const history=this.db.prepare('INSERT INTO rag_fact_history(subject,predicate,value,source_id) VALUES(?,?,?,?)');
@@ -24,7 +27,8 @@ export class KnowledgeLifecycle {
   try{
    // Replace extracted evidence for changed/deleted chunks, without touching manual facts.
    this.db.prepare('DELETE FROM rag_evidence WHERE source_id=?').run(sourceId);
-   this.db.prepare('DELETE FROM rag_facts WHERE source_id=? AND predicate=?').run(sourceId,'значение');
+   // Keep manually recorded facts intact; only remove facts backed by old evidence
+   // when no new evidence supports them after extraction.
    for(const chunk of chunks){
     for(const line of chunk.body.split(/\r?\n/)){
      const match=/^\s*([^:=\n]{2,100})\s*[:=]\s*([^\n]{1,300})\s*$/.exec(line);
@@ -35,9 +39,12 @@ export class KnowledgeLifecycle {
      if(conflict)conflicts++;
      const result=add.run(sourceId,chunk.id,subject,predicate,value,0.65);
      if(result.changes){
-      created++;
+      const key=JSON.stringify([chunk.id,subject,predicate,value]);
+      if(!previousKeys.has(key)){
+       created++;
+       history.run(subject,predicate,value,sourceId);
+      }
       fact.run(subject,predicate,value,sourceId);
-      history.run(subject,predicate,value,sourceId);
      }
     }
    }
