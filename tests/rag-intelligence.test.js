@@ -105,3 +105,20 @@ test('feedback reranking stays bounded and query-specific',()=>{
   assert.ok(before.results.every(r=>pipeline.verifyCitation(r.citation)));
  }finally{db.close();}
 });
+
+test('vector sync rolls back entire batch when one vector write fails',()=>{
+ const db=new DatabaseSync(':memory:');
+ try{
+  const index=new KnowledgeIndex(db);
+  index.ingest({id:'doc-a',title:'A',text:'первая запись'});
+  index.ingest({id:'doc-b',title:'B',text:'вторая запись'});
+  const intel=new RagIntelligence(db);
+  db.exec(`CREATE TRIGGER reject_vector BEFORE INSERT ON rag_vectors WHEN (SELECT COUNT(*) FROM rag_vectors)>0 BEGIN SELECT RAISE(ABORT,'vector batch failed'); END;`);
+  assert.throws(()=>intel.sync(),/vector batch failed/);
+  assert.equal(db.prepare('SELECT COUNT(*) AS n FROM rag_vectors').get().n,0);
+  assert.equal(intel.metrics().indexed,0);
+  db.exec('DROP TRIGGER reject_vector');
+  assert.equal(intel.sync().indexed,2);
+  assert.equal(db.prepare('SELECT COUNT(*) AS n FROM rag_vectors').get().n,2);
+ }finally{db.close();}
+});
