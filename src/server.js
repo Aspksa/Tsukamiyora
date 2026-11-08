@@ -224,7 +224,7 @@ app.post('/api/rag/relations',async(req,reply)=>{
  try{const {subject,relation,object,sourceId}=req.body??{};rag.relate(subject,relation,object,sourceId);reply.code(201);return {ok:true};}
  catch(error){reply.code(400);return {error:String(error.message)};}
 });
-app.get('/api/rag/relations',async(req,reply)=>{
+app.get('/api/rag/edges',async(req,reply)=>{
  try{if(typeof req.query?.subject!=='string'||req.query.subject.length>200)throw Error('Invalid subject');return {relations:rag.neighbors(req.query.subject)};}
  catch(error){reply.code(400);return {error:String(error.message)};}
 });
