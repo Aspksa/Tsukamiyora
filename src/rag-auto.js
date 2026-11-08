@@ -2,6 +2,7 @@ import { sep } from 'node:path';
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { indexDirectory } from './rag-import.js';
+import { createRagWorkQueue } from './rag-work-queue.js';
 
 export function loadIndexConfig(root=process.cwd()){
  const path=join(root,'data','rag-settings.json');
@@ -16,6 +17,7 @@ export function loadIndexConfig(root=process.cwd()){
 }
 export function createAutoIndexer(db,{root=process.cwd(),log=()=>{}}={}){
  let timer=null,running=false,closed=false,last=null,runCount=0,skippedCount=0;
+ const queue=createRagWorkQueue({capacity:2,log});
  const run=()=>{
   if(closed||running){skippedCount++;return {skipped:true};}
   running=true;
@@ -35,14 +37,20 @@ export function createAutoIndexer(db,{root=process.cwd(),log=()=>{}}={}){
    return {results};
   }finally{running=false;}
  };
+ const enqueue=()=>{
+  if(closed)return {skipped:true};
+  const queued=queue.submit('rag:index',()=>run());
+  if(queued.queued)void queue.drain({maxJobs:1});
+  return queued;
+ };
  const start=()=>{
   if(timer||closed)return;
   const cfg=loadIndexConfig(root);
   if(!cfg.enabled)return;
-  timer=setInterval(()=>{try{run();}catch(error){log({event:'rag:error',error:String(error)});}},cfg.intervalMinutes*60000);
+  timer=setInterval(()=>{try{enqueue();}catch(error){try{log({event:'rag:error',error:String(error)});}catch{}}},cfg.intervalMinutes*60000);
   timer.unref();
-  queueMicrotask(()=>{try{run();}catch(error){log({event:'rag:error',error:String(error)});}});
+  queueMicrotask(()=>{try{enqueue();}catch(error){try{log({event:'rag:error',error:String(error)});}catch{}});
  };
- const stop=()=>{closed=true;if(timer)clearInterval(timer);timer=null;};
- return {start,stop,run,status:()=>({running,closed,scheduled:Boolean(timer),runCount,skippedCount,last})};
+ const stop=()=>{closed=true;if(timer)clearInterval(timer);timer=null;queue.stop();};
+ return {start,stop,run,enqueue,status:()=>({running,closed,scheduled:Boolean(timer),runCount,skippedCount,last,queue:queue.status()})};
 }
