@@ -288,7 +288,7 @@ app.post('/api/rag/agents/coordinator/audit',async()=>agentCoordinator.enqueueAu
 app.post('/api/rag/agents/coordinator/lessons',async(req,reply)=>{try{const result=agentCoordinator.submitLesson(req.body??{});reply.code(201);return result;}catch(e){reply.code(400);return {error:e.message};}});
 app.get('/api/rag/agents/experience/reviews',async(req,reply)=>{try{return {items:agentExperience.reviewHistory({limit:Number(req.query?.limit??30)})};}catch(e){reply.code(400);return {error:e.message};}});
 app.get('/api/rag/agents/experience/pending',async(req,reply)=>{try{return {items:agentExperience.pending({limit:Number(req.query?.limit??30)})};}catch(e){reply.code(400);return {error:e.message};}});
-app.get('/api/rag/agents/experience',async(req,reply)=>{try{return {items:agentExperience.share({taskKey:req.query?.taskKey,limit:Number(req.query?.limit??10)})};}catch(e){reply.code(400);return {error:e.message};}});
+app.get('/api/rag/agents/experience/approved',async(req,reply)=>{try{return {items:agentExperience.share({taskKey:req.query?.taskKey,limit:Number(req.query?.limit??10)})};}catch(e){reply.code(400);return {error:e.message};}});
 app.get('/api/rag/agents/research',async(req,reply)=>{try{
  const query=req.query?.q??'',taskKey=req.query?.taskKey;
  if(typeof taskKey!=='string'||!taskKey.trim()||taskKey.length>200)throw Error('Invalid task key');
