@@ -49,6 +49,7 @@ import { runAgentCapabilitySuite } from './agent-capability-suite.js';
 import { runDocumentRetrievalBenchmark } from './agent-document-benchmark.js';
 import { evaluateLabeledDocuments, compareLabeledDocumentModes } from './agent-labeled-document-eval.js';
 import { createAgentEvaluationDrafts } from './agent-evaluation-drafts.js';
+import { partitionLabeledCases } from './agent-evaluation-split.js';
 import { diagnoseAgents } from './rag-agent-diagnostics.js';
 import { assessCloudBudget } from './cloud-budget.js';
 import { createRagQualityMonitor } from './rag-quality-monitor.js';
@@ -235,6 +236,20 @@ app.addHook('onRequest',async(req,reply)=>{
 app.get('/api/rag/agents/academy/documents/drafts',async(req,reply)=>{try{return {items:agentEvaluationDrafts.list({limit:Number(req.query?.limit??30)})};}catch(e){reply.code(400);return {error:e.message};}});
 app.get('/api/rag/agents/academy/documents/drafts/:id',async(req,reply)=>{try{return agentEvaluationDrafts.detail(Number(req.params.id));}catch(e){reply.code(400);return {error:e.message};}});
 app.post('/api/rag/agents/academy/documents/drafts/review',async(req,reply)=>{try{return agentEvaluationDrafts.review(req.body??{});}catch(e){reply.code(400);return {error:e.message};}});
+app.post('/api/rag/agents/academy/documents/drafts/validation',async(req,reply)=>{try{
+ const approved=agentEvaluationDrafts.approved();
+ const split=partitionLabeledCases(approved,{validationFraction:Number(req.body?.validationFraction??0.25)});
+ if(split.validation.length<2||split.development.length<2)throw Error('Need at least two queries per partition');
+ const limit=Number(req.body?.limit??5);
+ const baseline=evaluateLabeledDocuments(rag,{cases:split.validation,limit,mode:'lexical'});
+ const candidate=evaluateLabeledDocuments(rag,{cases:split.validation,limit,mode:'adaptive'});
+ return {developmentCount:split.development.length,validationCount:split.validation.length,
+  developmentSources:split.developmentSources,validationSources:split.validationSources,
+  sourceDisjoint:true,baseline:{hitAtK:baseline.hitAtK,mrrAtK:baseline.mrrAtK},
+  candidate:{hitAtK:candidate.hitAtK,mrrAtK:candidate.mrrAtK},
+  regression:candidate.hitAtK<baseline.hitAtK||candidate.mrrAtK<baseline.mrrAtK,
+  heldOutFromTraining:false,requiresApproval:true,applied:false,cloudCalls:0};
+ }catch(e){reply.code(400);return {error:e.message};}});
 app.post('/api/rag/agents/academy/documents/drafts/evaluate',async(req,reply)=>{try{return evaluateLabeledDocuments(rag,{cases:agentEvaluationDrafts.approved(),limit:Number(req.body?.limit??5),mode:req.body?.mode??'lexical'});}catch(e){reply.code(400);return {error:e.message};}});
 app.post('/api/rag/agents/academy/documents/evaluate',async(req,reply)=>{try{return evaluateLabeledDocuments(rag,req.body??{});}catch(e){reply.code(400);return {error:e.message};}});
 app.post('/api/rag/agents/academy/documents/compare',async(req,reply)=>{try{return compareLabeledDocumentModes(rag,req.body??{});}catch(e){reply.code(400);return {error:e.message};}});
