@@ -85,8 +85,8 @@ try {
     $port = $free
   }
   $env:TSUKAMIYORA_PORT = [string]$port
-  $server = Join-Path $root 'src\server.js'
-  if (-not (Test-Path -LiteralPath $server)) { throw 'Missing src\server.js' }
+  $server = Join-Path $root 'src\supervisor.js'
+  if (-not (Test-Path -LiteralPath $server)) { throw 'Missing src\supervisor.js' }
   Log "Starting Node.js $version, port $port"
   $proc = Start-Process -FilePath $node -ArgumentList @($server) -WorkingDirectory $root -PassThru -WindowStyle Hidden -RedirectStandardOutput (Join-Path $logs 'server-stdout.log') -RedirectStandardError (Join-Path $logs 'server-stderr.log')
   Log "Server PID=$($proc.Id)"
