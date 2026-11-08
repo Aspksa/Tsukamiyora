@@ -18,12 +18,14 @@ export async function backupDatabase({root=process.cwd(),retention=10}={}){
   const check=new DatabaseSync(tmp);
   try { const integrity=check.prepare('PRAGMA integrity_check').get(); if(Object.values(integrity)[0]!=='ok')throw Error('Backup integrity check failed'); }
   finally { check.close(); }
+  // Finalize checksum first; publish the verified snapshot only afterwards.
+  const digest=sha256File(tmp);
+  writeFileSync(tmp+'.sha256',digest+'\n',{flag:'wx'});
   renameSync(tmp,target);
-  // Hash the finished snapshot for tamper/corruption detection.
-  const digest=sha256File(target);
-  writeFileSync(target+'.sha256',digest+'\n',{flag:'wx'});
+  renameSync(tmp+'.sha256',target+'.sha256');
  } catch(e) {
   if(existsSync(tmp))unlinkSync(tmp);
+  if(existsSync(tmp+'.sha256'))unlinkSync(tmp+'.sha256');
   // Never leave a published snapshot without its verified checksum.
   if(existsSync(target+'.sha256'))unlinkSync(target+'.sha256');
   if(existsSync(target))unlinkSync(target);
