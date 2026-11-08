@@ -5,7 +5,7 @@ import { expandMultilingualQuery } from './rag-multilingual.js';
 const words=text=>(text.toLocaleLowerCase('ru').match(/[\p{L}\p{N}]{2,}/gu)||[]);
 const unique=items=>[...new Set(items)];
 export class RagPipeline {
- constructor(index){this.index=index;this.intelligence=new RagIntelligence(index.db);this.stats={queries:0,hits:0,empty:0,totalMs:0,semanticFallbacks:0,verifiedCitations:0,correctivePasses:0};}
+ constructor(index){this.index=index;this.intelligence=new RagIntelligence(index.db);this.stats={queries:0,hits:0,empty:0,totalMs:0,semanticFallbacks:0,verifiedCitations:0,correctivePasses:0,cacheHits:0};this.resultCache=new Map();}
  rewrite(query){
   if(typeof query!=='string'||!query.trim()||query.length>1000||!words(query).length)throw Error('Invalid query');
   return expandMultilingualQuery(query,{maxTerms:24});
@@ -13,6 +13,17 @@ export class RagPipeline {
  retrieve(query,{limit=5,mode='adaptive',allowedChatSourceIds=null}={}){
   if(!Number.isInteger(limit)||limit<1||limit>30||!['adaptive','lexical','semantic','hybrid'].includes(mode))throw Error('Invalid retrieval options');
   const start=performance.now(),rewritten=this.rewrite(query);
+  // Cache only public-source requests. SQLite total_changes invalidates on local writes;
+  // the short TTL also bounds stale results from other database connections.
+  const cacheable=!(allowedChatSourceIds instanceof Set&&allowedChatSourceIds.size>0);
+  const cacheKey=cacheable?JSON.stringify([query,limit,mode]):null;
+  const revision=this.index.db.prepare('SELECT total_changes() AS n').get().n;
+  const cached=cacheKey?this.resultCache.get(cacheKey):null;
+  if(cached&&cached.revision===revision&&Date.now()-cached.at<30000){
+   this.stats.cacheHits++;this.stats.queries++;this.stats.hits+=cached.value.results.length;
+   if(!cached.value.results.length)this.stats.empty++;
+   return structuredClone({...cached.value,elapsedMs:Math.round((performance.now()-start)*100)/100,cacheHit:true});
+  }
   const allowed=allowedChatSourceIds instanceof Set?allowedChatSourceIds:new Set();
   let lexical=(mode==='semantic'?[]:this.index.search(rewritten,{limit:Math.min(30,limit*5),allowedChatSourceIds:allowed}));
   // Corrective lexical pass: long queries can be over-specific. Retry with
@@ -52,7 +63,12 @@ export class RagPipeline {
   this.stats.verifiedCitations+=selected.length;
   const elapsedMs=Math.round((performance.now()-start)*100)/100;
   this.stats.queries++;this.stats.hits+=selected.length;if(!selected.length)this.stats.empty++;this.stats.totalMs+=elapsedMs;
-  return {query,rewritten,modeUsed,results:selected,needsReview:selected.length===0||selected[0].rerankScore<0.15,elapsedMs};
+  const value={query,rewritten,modeUsed,results:selected,needsReview:selected.length===0||selected[0].rerankScore<0.15,elapsedMs,cacheHit:false};
+  if(cacheKey){
+   if(this.resultCache.size>=64)this.resultCache.clear();
+   this.resultCache.set(cacheKey,{revision:this.index.db.prepare('SELECT total_changes() AS n').get().n,at:Date.now(),value:structuredClone(value)});
+  }
+  return value;
  }
  verifyCitation(citation){
   if(!citation||typeof citation.chunkId!=='string'||typeof citation.sourceId!=='string')return false;
