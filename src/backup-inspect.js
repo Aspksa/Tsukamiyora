@@ -12,6 +12,7 @@ export function inspectBackups({root=process.cwd(),limit=10}={}){
   .sort().reverse().slice(0,limit).map(name=>{
    const path=join(folder,name);
    try{
+    if(!statSync(path,{throwIfNoEntry:false}))return {name,valid:false,error:'missing_snapshot'};
     const actual=realpathSync(path);
     if(!actual.startsWith(actualFolder+sep))return {name,valid:false,error:'outside_backup_folder'};
     const size=statSync(actual).size;
