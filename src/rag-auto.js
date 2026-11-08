@@ -45,7 +45,9 @@ export function createAutoIndexer(db,{root=process.cwd(),log=()=>{}}={}){
  const enqueue=()=>{
   if(closed)return {skipped:true};
   const queued=queue.submit('rag:index',()=>run());
-  if(queued.queued)void queue.drain({maxJobs:1});
+  // Defer the drain: duplicate submissions in the same tick coalesce before
+  // any synchronous filesystem work begins.
+  if(queued.queued)queueMicrotask(()=>{void queue.drain({maxJobs:1});});
   return queued;
  };
  const start=()=>{
