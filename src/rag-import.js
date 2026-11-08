@@ -21,10 +21,22 @@ export function indexDirectory(db,folder,{maxFiles=2000,maxBytes=1024*1024}={}){
     const actual=realpathSync(path);if(!actual.startsWith(root+sep)){skipped++;continue;}
     const rel=relative(root,path).replaceAll('\\','/');
     const id='file:'+createHash('sha256').update(root+'\0'+rel).digest('hex');
+    seen.add(id);
     const result=rag.ingest({id,title:rel,text:readFileSync(path,'utf8')});
     if(result.changed)changed++;
    }catch{skipped++;}
   }
  }
- return {scanned,changed,skipped,remainingDirectories:pending.length};
+ if(pending.length===0&&skipped===0){
+  db.exec('CREATE TABLE IF NOT EXISTS rag_file_roots(root TEXT NOT NULL, source_id TEXT NOT NULL, PRIMARY KEY(root,source_id))');
+  const old=db.prepare('SELECT source_id FROM rag_file_roots WHERE root=?').all(root);
+  for(const row of old){if(!seen.has(row.source_id)){if(rag.removeSource(row.source_id))removed++;db.prepare('DELETE FROM rag_file_roots WHERE root=? AND source_id=?').run(root,row.source_id);}}
+  const track=db.prepare('INSERT OR IGNORE INTO rag_file_roots(root,source_id) VALUES(?,?)');
+  for(const id of seen)track.run(root,id);
+ }else{
+  db.exec('CREATE TABLE IF NOT EXISTS rag_file_roots(root TEXT NOT NULL, source_id TEXT NOT NULL, PRIMARY KEY(root,source_id))');
+  const track=db.prepare('INSERT OR IGNORE INTO rag_file_roots(root,source_id) VALUES(?,?)');
+  for(const id of seen)track.run(root,id);
+ }
+ return {scanned,changed,skipped,removed,remainingDirectories:pending.length};
 }
