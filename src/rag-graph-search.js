@@ -20,11 +20,13 @@ export class GraphAwareRag {
     if(hit)citations.push({...hit,citation:{sourceId:hit.source_id,chunkId:hit.id,title:hit.title},graphEvidence:true});
    }
   }
-  const seen=new Set(),results=[];
+  const seen=new Map(),results=[];
   for(const hit of [...lexical.results,...citations]){
-   if(seen.has(hit.id)||!this.pipeline.verifyCitation(hit.citation))continue;
-   seen.add(hit.id);results.push(hit);
-   if(results.length>=limit)break;
+   if(!this.pipeline.verifyCitation(hit.citation))continue;
+   const existing=seen.get(hit.id);
+   if(existing){if(hit.graphEvidence)existing.graphEvidence=true;continue;}
+   if(results.length>=limit)continue;
+   const item={...hit};seen.set(hit.id,item);results.push(item);
   }
   return {query,results,graph:{nodes:graph.nodes,edges:graph.edges},needsReview:!results.length,remoteCalls:0};
  }
