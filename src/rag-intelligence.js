@@ -63,6 +63,23 @@ export class RagIntelligence {
   const rows=this.db.prepare(`SELECT c.id,c.source_id,c.body,s.title,v.vector FROM rag_vectors v JOIN rag_chunks c ON c.id=v.chunk_id JOIN rag_sources s ON s.id=c.source_id WHERE ${acl}`).all(...allowed);
   return rows.map(r=>({...r,similarity:cosine(vec,JSON.parse(r.vector))})).filter(r=>r.similarity>0).sort((a,b)=>b.similarity-a.similarity).slice(0,limit).map(({vector,...r})=>({...r,citation:{sourceId:r.source_id,title:r.title,chunkId:r.id}}));
  }
+ duplicates({limit=100}={}){
+  if(!Number.isInteger(limit)||limit<1||limit>500)throw Error('Invalid limit');
+  // Exact content duplicates only: no false positive from hash-vector collisions.
+  const rows=this.db.prepare(`SELECT c.body_hash,COUNT(DISTINCT c.source_id) AS source_count, GROUP_CONCAT(DISTINCT c.source_id) AS source_ids
+   FROM rag_chunks c WHERE substr(c.source_id,1,5)<>'chat:'
+   GROUP BY c.body_hash HAVING COUNT(DISTINCT c.source_id)>1
+   ORDER BY source_count DESC,c.body_hash LIMIT ?`).all(limit);
+  return rows.map(r=>({bodyHash:r.body_hash,sourceCount:r.source_count,sourceIds:r.source_ids.split(',')}));
+ }
+ contradictions({limit=100}={}){
+  if(!Number.isInteger(limit)||limit<1||limit>500)throw Error('Invalid limit');
+  // Candidate conflicts: different recorded values for the same fact key.
+  return this.db.prepare(`SELECT subject,predicate,COUNT(DISTINCT value) AS value_count
+   FROM rag_facts WHERE substr(source_id,1,5)<>'chat:'
+   GROUP BY subject,predicate HAVING COUNT(DISTINCT value)>1
+   ORDER BY value_count DESC,subject,predicate LIMIT ?`).all(limit);
+ }
  graph(subject,{limit=30}={}){
   if(typeof subject!=='string'||!subject.trim()||subject.length>200||!Number.isInteger(limit)||limit<1||limit>100)throw Error('Invalid graph query');
   return this.db.prepare('SELECT subject,relation,object,source_id FROM rag_edges WHERE subject=? OR object=? LIMIT ?').all(subject,subject,limit);
