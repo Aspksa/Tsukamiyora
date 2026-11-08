@@ -5,9 +5,10 @@ import { KnowledgeIndex } from './rag.js';
 import { RagPipeline } from './rag-pipeline.js';
 import { ConversationMemory } from './rag-memory.js';
 import { ChatContext } from './chat-context.js';
+import { CloudRu } from './cloudru.js';
 import { createAutoIndexer } from './rag-auto.js';
 import { tasks, metrics, modules, events } from './runtime.js';
-import { mkdirSync, appendFileSync } from 'node:fs';
+import { mkdirSync, appendFileSync, readFileSync } from 'node:fs';
 const app=Fastify({logger:false,bodyLimit:1048576});
 await app.register(websocket);
 const db=openStorage();
@@ -15,9 +16,25 @@ const rag=new KnowledgeIndex(db);
 const ragPipeline=new RagPipeline(rag);
 const memory=new ConversationMemory(db);
 const chatContext=new ChatContext(db);
+const cloud=new CloudRu();
 mkdirSync('logs',{recursive:true});
 const log=(message)=>appendFileSync('logs/core.jsonl',JSON.stringify({at:new Date().toISOString(),message})+'\n');
 const autoIndex=createAutoIndexer(db,{log});
+app.addHook('onRequest',async(req,reply)=>{
+ if(req.method!=='GET'&&req.method!=='HEAD'){
+  const origin=req.headers.origin;
+  if(origin){
+   let url;try{url=new URL(origin);}catch{reply.code(403);return reply.send({error:'invalid_origin'});}
+   if(!['127.0.0.1','localhost'].includes(url.hostname)||url.port!==String(process.env.TSUKAMIYORA_PORT||4177)){reply.code(403);return reply.send({error:'forbidden_origin'});}
+  }
+ }
+});
+app.get('/settings',async(req,reply)=>{reply.type('text/html; charset=utf-8');return readFileSync(new URL('../public/settings.html',import.meta.url),'utf8');});
+app.get('/api/cloud/settings',async()=>cloud.publicSettings());
+app.post('/api/cloud/settings',async(req,reply)=>{try{return cloud.save(req.body??{});}catch(e){reply.code(400);return {error:e.message};}});
+app.get('/api/cloud/models',async(req,reply)=>{try{return await cloud.models();}catch(e){reply.code(e.status||503);return {error:e.message};}});
+app.post('/api/cloud/test',async(req,reply)=>{try{return await cloud.testModel();}catch(e){reply.code(e.status||503);return {error:e.message};}});
+app.post('/api/cloud/chat',async(req,reply)=>{try{const response=await cloud.complete(req.body?.messages);return {message:response.choices?.[0]?.message??null,usage:response.usage??null};}catch(e){reply.code(e.status||503);return {error:e.message};}});
 app.get('/health',async()=>{db.prepare('SELECT 1').get();return {status:'ok',service:'tsukamiyora-core',version:'0.3.0',database:'ok'};});
 app.get('/',async()=>({name:'Tsukamiyora Core',status:'running',endpoints:['/health','/api/events','/api/metrics','/api/modules','/api/tasks','/api/rag/search','/api/rag/documents','/api/rag/context','/api/rag/status','/ws']}));
 app.get('/api/metrics',async()=>metrics());
