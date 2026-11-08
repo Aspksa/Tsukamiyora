@@ -12,7 +12,18 @@ export class RagIntelligence {
   CREATE TABLE IF NOT EXISTS rag_ratings(id INTEGER PRIMARY KEY AUTOINCREMENT,query_hash TEXT NOT NULL,source_id TEXT NOT NULL,helpful INTEGER NOT NULL,created_at TEXT DEFAULT CURRENT_TIMESTAMP);`);
   db.exec('CREATE TABLE IF NOT EXISTS rag_vector_metadata(key TEXT PRIMARY KEY,value TEXT NOT NULL)');
   const previous=db.prepare("SELECT value FROM rag_vector_metadata WHERE key='version'").get()?.value;
-  if(previous!==this.vectorVersion){db.prepare('DELETE FROM rag_vectors').run();db.prepare("INSERT INTO rag_vector_metadata(key,value) VALUES('version',?) ON CONFLICT(key) DO UPDATE SET value=excluded.value").run(this.vectorVersion);}
+  if(previous!==this.vectorVersion){
+   db.exec('SAVEPOINT rag_vector_migration');
+   try{
+    db.prepare('DELETE FROM rag_vectors').run();
+    db.prepare("INSERT INTO rag_vector_metadata(key,value) VALUES('version',?) ON CONFLICT(key) DO UPDATE SET value=excluded.value").run(this.vectorVersion);
+    db.exec('RELEASE SAVEPOINT rag_vector_migration');
+   }catch(error){
+    db.exec('ROLLBACK TO SAVEPOINT rag_vector_migration');
+    db.exec('RELEASE SAVEPOINT rag_vector_migration');
+    throw error;
+   }
+  }
   this.stats={indexed:0,searches:0,cacheHits:0};this.queryCache=new Map();
  }
  embed(text){
