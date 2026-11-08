@@ -57,17 +57,6 @@ try {
   $node = Find-Node
   $version = (& $node -p 'process.versions.node').Trim()
   if ($LASTEXITCODE -ne 0 -or [version]$version -lt [version]'22.13.0') { throw "Node.js 22.13+ required, found $version" }
-  $npm = Join-Path (Split-Path -Parent $node) 'npm.cmd'
-  if (-not (Test-Path -LiteralPath $npm)) {
-    $npmCommand = Get-Command npm.cmd -ErrorAction SilentlyContinue
-    if ($npmCommand) { $npm = $npmCommand.Source }
-    else { throw 'npm.cmd missing; install full Node.js distribution' }
-  }
-  if ((-not (Test-Path -LiteralPath (Join-Path $root 'node_modules\\fastify'))) -or (-not (Test-Path -LiteralPath (Join-Path $root 'node_modules\\@fastify\\websocket')))) {
-    Log 'Installing npm dependencies'
-    & $npm install --no-audit --no-fund --ignore-scripts --prefix $root
-    if ($LASTEXITCODE -ne 0) { throw 'npm install failed' }
-  }
   $port = 4177
   if ($env:TSUKAMIYORA_PORT) {
     $port = [int]$env:TSUKAMIYORA_PORT
@@ -94,6 +83,22 @@ try {
     $free = 4178..4277 | Where-Object { $_ -notin $used } | Select-Object -First 1
     if (-not $free) { throw 'No free port in range 4177-4277' }
     $port = $free
+  }
+  $npm = Join-Path (Split-Path -Parent $node) 'npm.cmd'
+  if (-not (Test-Path -LiteralPath $npm)) {
+    $npmCommand = Get-Command npm.cmd -ErrorAction SilentlyContinue
+    if ($npmCommand) { $npm = $npmCommand.Source }
+    else { throw 'npm.cmd missing; install full Node.js distribution' }
+  }
+  if ((-not (Test-Path -LiteralPath (Join-Path $root 'node_modules\\fastify'))) -or (-not (Test-Path -LiteralPath (Join-Path $root 'node_modules\\@fastify\\websocket')))) {
+    Log 'Installing npm dependencies'
+    $lockfile = Join-Path $root 'package-lock.json'
+    if (Test-Path -LiteralPath $lockfile) {
+      & $npm ci --no-audit --no-fund --ignore-scripts --prefix $root
+    } else {
+      & $npm install --no-audit --no-fund --ignore-scripts --prefix $root
+    }
+    if ($LASTEXITCODE -ne 0) { throw 'npm install failed' }
   }
   $env:TSUKAMIYORA_PORT = [string]$port
   $server = Join-Path $root 'src\supervisor.js'
