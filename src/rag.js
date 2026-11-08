@@ -17,7 +17,7 @@ export class KnowledgeIndex {
   const hash=digest(text),old=this.db.prepare('SELECT body_hash FROM rag_sources WHERE id=?').get(id);
   if(old?.body_hash===hash)return {changed:false,chunks:0};
   const parts=[];for(let p=0;p<text.length;p+=chunkSize)parts.push(text.slice(p,p+chunkSize));
-  this.db.exec('BEGIN IMMEDIATE');
+  this.db.exec('SAVEPOINT rag_index_write');
   try{
    this.db.prepare('DELETE FROM rag_chunks WHERE source_id=?').run(id);
    this.db.prepare('DELETE FROM rag_edges WHERE source_id=?').run(id);
@@ -25,8 +25,8 @@ export class KnowledgeIndex {
    this.db.prepare('INSERT INTO rag_sources(id,title,body_hash) VALUES(?,?,?) ON CONFLICT(id) DO UPDATE SET title=excluded.title,body_hash=excluded.body_hash,updated_at=CURRENT_TIMESTAMP').run(id,title,hash);
    const insert=this.db.prepare('INSERT OR IGNORE INTO rag_chunks(id,source_id,position,body,body_hash) VALUES(?,?,?,?,?)');
    parts.forEach((body,i)=>insert.run(digest(id+':'+i),id,i,body,digest(body)));
-   this.db.exec('COMMIT');
-  }catch(e){this.db.exec('ROLLBACK');throw e;}
+   this.db.exec('RELEASE SAVEPOINT rag_index_write');
+  }catch(e){this.db.exec('ROLLBACK TO SAVEPOINT rag_index_write');this.db.exec('RELEASE SAVEPOINT rag_index_write');throw e;}
   this.cache.clear();return {changed:true,chunks:parts.length};
  }
  search(query,{limit=5,allowedChatSourceIds=null}={}){
@@ -44,14 +44,14 @@ export class KnowledgeIndex {
  }
  removeSource(id){
   if(typeof id!=='string'||!id.startsWith('file:'))throw Error('Only indexed file sources may be removed');
-  this.db.exec('BEGIN IMMEDIATE');
+  this.db.exec('SAVEPOINT rag_index_write');
   try{
    this.db.prepare('DELETE FROM rag_chunks WHERE source_id=?').run(id);
    this.db.prepare('DELETE FROM rag_edges WHERE source_id=?').run(id);
    this.db.prepare('DELETE FROM rag_facts WHERE source_id=?').run(id);
    const result=this.db.prepare('DELETE FROM rag_sources WHERE id=?').run(id);
-   this.db.exec('COMMIT');this.cache.clear();return result.changes>0;
-  }catch(error){this.db.exec('ROLLBACK');throw error;}
+   this.db.exec('RELEASE SAVEPOINT rag_index_write');this.cache.clear();return result.changes>0;
+  }catch(error){this.db.exec('ROLLBACK TO SAVEPOINT rag_index_write');this.db.exec('RELEASE SAVEPOINT rag_index_write');throw error;}
  }
  relate(subject,relation,object,sourceId){
   if(![subject,relation,object,sourceId].every(x=>typeof x==='string'&&x.length>0&&x.length<=200))throw Error('Invalid relation');
