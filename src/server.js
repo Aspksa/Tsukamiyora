@@ -218,6 +218,7 @@ app.post('/api/rag/agents/tasks/dispatch',async(req,reply)=>{try{return submitPl
 app.get('/api/rag/agents/failures',async(req,reply)=>{try{return analyzeAgentFailures(db,{limit:Number(req.query?.limit??100)});}catch(e){reply.code(400);return {error:e.message};}});
 app.post('/api/rag/agents/academy/documents/drafts/generate',async(req,reply)=>{try{return agentEvaluationDrafts.generate({limit:Number(req.body?.limit??20)});}catch(e){reply.code(400);return {error:e.message};}});
 app.get('/api/rag/agents/academy/documents/drafts',async(req,reply)=>{try{return {items:agentEvaluationDrafts.list({limit:Number(req.query?.limit??30)})};}catch(e){reply.code(400);return {error:e.message};}});
+app.get('/api/rag/agents/academy/documents/drafts/:id',async(req,reply)=>{try{return agentEvaluationDrafts.detail(Number(req.params.id));}catch(e){reply.code(400);return {error:e.message};}});
 app.post('/api/rag/agents/academy/documents/drafts/review',async(req,reply)=>{try{return agentEvaluationDrafts.review(req.body??{});}catch(e){reply.code(400);return {error:e.message};}});
 app.post('/api/rag/agents/academy/documents/drafts/evaluate',async(req,reply)=>{try{return evaluateLabeledDocuments(rag,{cases:agentEvaluationDrafts.approved(),limit:Number(req.body?.limit??5),mode:req.body?.mode??'lexical'});}catch(e){reply.code(400);return {error:e.message};}});
 app.post('/api/rag/agents/academy/documents/evaluate',async(req,reply)=>{try{return evaluateLabeledDocuments(rag,req.body??{});}catch(e){reply.code(400);return {error:e.message};}});
