@@ -114,7 +114,9 @@ try {
   $server = Join-Path $root 'src\supervisor.js'
   if (-not (Test-Path -LiteralPath $server)) { throw 'Missing src\supervisor.js' }
   Log "Starting Node.js $version, port $port"
-  $proc = Start-Process -FilePath $node -ArgumentList @($server) -WorkingDirectory $root -PassThru -WindowStyle Hidden -RedirectStandardOutput (Join-Path $logs 'server-stdout.log') -RedirectStandardError (Join-Path $logs 'server-stderr.log')
+  # Use a path relative to WorkingDirectory. Start-Process strips quoting from
+  # a single absolute -ArgumentList path containing spaces and non-ASCII text.
+  $proc = Start-Process -FilePath $node -ArgumentList 'src/supervisor.js' -WorkingDirectory $root -PassThru -WindowStyle Hidden -RedirectStandardOutput (Join-Path $logs 'server-stdout.log') -RedirectStandardError (Join-Path $logs 'server-stderr.log')
   Log "Server PID=$($proc.Id)"
   $ready = $false
   for ($i=0; $i -lt 30; $i++) {
@@ -122,12 +124,19 @@ try {
     if (Healthy $port) { $ready = $true; break }
     if ($proc.HasExited) { break }
   }
-  if (-not $ready) { throw 'Server failed health check; inspect logs/server-stderr.log' }
+  if (-not $ready) {
+    $stderr = Join-Path $logs 'server-stderr.log'
+    if (Test-Path -LiteralPath $stderr) {
+      Get-Content -LiteralPath $stderr -Tail 25 -ErrorAction SilentlyContinue | ForEach-Object { Log "Server: $_" }
+    }
+    throw 'Server failed health check; inspect logs/server-stderr.log'
+  }
   Log 'Health check passed'
   if (-not $env:CI) { Start-Process "http://127.0.0.1:$port/chat" }
   exit 0
 } catch {
   Log "ERROR: $($_.Exception.Message)"
+  Log "DETAIL: $($_.ScriptStackTrace)"
   exit 1
 } finally {
   if ($locked) { $mutex.ReleaseMutex() }
