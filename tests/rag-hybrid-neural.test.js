@@ -40,7 +40,7 @@ test('hybrid neural retrieval does not implicitly index or upload documents',asy
   const cloud={async request(){requests++;return {data:[{embedding:[1,0]}]};}};
   const hybrid=new HybridNeuralRag(index,cloud,{model:'test-embedding'});
   const result=await hybrid.retrieve('технический',{limit:1});
-  assert.equal(requests,1);
+  assert.equal(requests,0);
   assert.equal(result.results.length,1);
   assert.equal(hybrid.neural.metrics().stored,0);
  }finally{db.close();}
