@@ -21,8 +21,12 @@ export class ConversationMemory {
    return {id,created:false};
   }
   const sourceId='chat:'+id;
-  this.index.ingest({id:sourceId,title:'Chat '+conversationId+' / '+role,text:content});
-  this.db.prepare('INSERT INTO rag_messages(id,conversation_id,role,content) VALUES(?,?,?,?)').run(id,conversationId,role,content);
+  this.db.exec('SAVEPOINT rag_message_append');
+  try{
+   this.index.ingest({id:sourceId,title:'Chat '+conversationId+' / '+role,text:content});
+   this.db.prepare('INSERT INTO rag_messages(id,conversation_id,role,content) VALUES(?,?,?,?)').run(id,conversationId,role,content);
+   this.db.exec('RELEASE SAVEPOINT rag_message_append');
+  }catch(error){this.db.exec('ROLLBACK TO SAVEPOINT rag_message_append');this.db.exec('RELEASE SAVEPOINT rag_message_append');throw error;}
   return {id,created:true,sourceId};
  }
  history(conversationId,{limit=50}={}){
