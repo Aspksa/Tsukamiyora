@@ -37,6 +37,7 @@ import { createAgentAcademy } from './agent-academy.js';
 import { availableAgentExams, gradeAgentExam } from './agent-exams.js';
 import { availableAgentPractice, runAgentPractice } from './agent-practice.js';
 import { createAgentTrainingScheduler } from './agent-training-scheduler.js';
+import { buildAgentDevelopmentPlan, summarizeAgentDevelopment } from './agent-development.js';
 import { diagnoseAgents } from './rag-agent-diagnostics.js';
 import { assessCloudBudget } from './cloud-budget.js';
 import { createRagQualityMonitor } from './rag-quality-monitor.js';
@@ -184,6 +185,8 @@ app.post('/api/rag/agents/experience',async(req,reply)=>{try{const result=agentE
 app.post('/api/rag/agents/experience/review',async(req,reply)=>{try{return agentExperience.review(req.body??{});}catch(e){reply.code(400);return {error:e.message};}});
 app.get('/api/rag/agents/coordinator/diagnostics',async()=>diagnoseAgents({activity:agentCoordinator.activity({limit:100}),queue:agentCoordinator.status().queue,cloud:cloud.usageMetrics()}));
 app.get('/api/rag/agents/coordinator/activity',async(req,reply)=>{try{return {items:agentCoordinator.activity({limit:Number(req.query?.limit??30)})};}catch(e){reply.code(400);return {error:e.message};}});
+app.get('/api/rag/agents/academy/development',async()=>summarizeAgentDevelopment(agentAcademy.profiles()));
+app.get('/api/rag/agents/academy/development/:role',async(req,reply)=>{try{return buildAgentDevelopmentPlan(agentAcademy.profile(req.params.role));}catch(e){reply.code(400);return {error:e.message};}});
 app.get('/api/rag/agents/academy/scheduler',async()=>agentTrainingScheduler.status());
 app.post('/api/rag/agents/academy/scheduler/run',async()=>agentTrainingScheduler.run());
 app.get('/api/rag/agents/academy/practice',async()=>({tasks:availableAgentPractice(),offline:true}));
