@@ -8,10 +8,11 @@ export class RagPipeline {
   if(typeof query!=='string'||!query.trim()||query.length>1000||!words(query).length)throw Error('Invalid query');
   return unique(words(query)).slice(0,24).join(' ');
  }
- retrieve(query,{limit=5,mode='adaptive'}={}){
+ retrieve(query,{limit=5,mode='adaptive',allowedChatSourceIds=null}={}){
   if(!Number.isInteger(limit)||limit<1||limit>30||!['adaptive','lexical','semantic','hybrid'].includes(mode))throw Error('Invalid retrieval options');
   const start=performance.now(),rewritten=this.rewrite(query);
-  const lexical=mode==='semantic'?[]:this.index.search(rewritten,{limit:Math.min(30,limit*3)});
+  const allowed=allowedChatSourceIds instanceof Set?allowedChatSourceIds:new Set();
+  const lexical=(mode==='semantic'?[]:this.index.search(rewritten,{limit:Math.min(30,limit*5)})).filter(hit=>!hit.source_id.startsWith('chat:')||allowed.has(hit.source_id));
   const ranked=lexical.map((hit,i)=>{
    const terms=unique(words(query)),body=new Set(words(hit.body));
    const coverage=terms.length?terms.filter(t=>body.has(t)).length/terms.length:0;
@@ -32,7 +33,7 @@ export class RagPipeline {
    selected=[...combined.values()].sort((a,b)=>b.hybridScore-a.hybridScore).slice(0,limit);
    modeUsed=mode==='semantic'?'semantic':'hybrid';
   }
-  selected=selected.filter(hit=>this.verifyCitation(hit.citation));
+  selected=selected.filter(hit=>(!hit.source_id.startsWith('chat:')||allowed.has(hit.source_id))&&this.verifyCitation(hit.citation));
   this.stats.verifiedCitations+=selected.length;
   const elapsedMs=Math.round((performance.now()-start)*100)/100;
   this.stats.queries++;this.stats.hits+=selected.length;if(!selected.length)this.stats.empty++;this.stats.totalMs+=elapsedMs;
