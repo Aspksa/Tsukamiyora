@@ -37,3 +37,16 @@ test('graph citations point to a chunk containing the explicit relation',()=>{
   assert.equal(graphHit.citation.chunkId,graphHit.id);
  }finally{db.close();}
 });
+
+test('reindex invalidates obsolete graph edges and graph retrieval',()=>{
+ const db=new DatabaseSync(':memory:');
+ try{
+  const index=new KnowledgeIndex(db),relations=new RagRelationGraph(db);
+  index.ingest({id:'file:changing',title:'Changing',text:'Двигатель -> использует -> Масло'});
+  relations.extract({sourceId:'file:changing'});
+  assert.equal(new GraphAwareRag(index).retrieve('Двигатель').graph.edges.length,1);
+  index.ingest({id:'file:changing',title:'Changing',text:'Совершенно другой документ'});
+  assert.equal(db.prepare('SELECT COUNT(*) n FROM rag_extracted_relations WHERE source_id=?').get('file:changing').n,0);
+  assert.equal(new GraphAwareRag(index).retrieve('Двигатель').graph.edges.length,0);
+ }finally{db.close();}
+});
