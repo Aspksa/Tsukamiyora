@@ -15,11 +15,14 @@ export class RagPipeline {
   const start=performance.now(),rewritten=this.rewrite(query);
   // Cache only public-source requests. SQLite total_changes invalidates on local writes;
   // the short TTL also bounds stale results from other database connections.
-  const cacheable=!(allowedChatSourceIds instanceof Set&&allowedChatSourceIds.size>0);
+  // Only lexical public queries are cacheable: semantic sync/feedback may change
+  // independently and authorized chat scopes must never share cached responses.
+  const cacheable=mode==='lexical'&&(allowedChatSourceIds===null||(allowedChatSourceIds instanceof Set&&allowedChatSourceIds.size===0));
   const cacheKey=cacheable?JSON.stringify([query,limit,mode]):null;
   const revision=this.index.db.prepare('SELECT total_changes() AS n').get().n;
+  const dataVersion=this.index.db.prepare('PRAGMA data_version').get().data_version;
   const cached=cacheKey?this.resultCache.get(cacheKey):null;
-  if(cached&&cached.revision===revision&&Date.now()-cached.at<30000){
+  if(cached&&cached.revision===revision&&cached.dataVersion===dataVersion&&Date.now()-cached.at<30000){
    this.stats.cacheHits++;this.stats.queries++;this.stats.hits+=cached.value.results.length;
    if(!cached.value.results.length)this.stats.empty++;
    return structuredClone({...cached.value,elapsedMs:Math.round((performance.now()-start)*100)/100,cacheHit:true});
@@ -66,7 +69,7 @@ export class RagPipeline {
   const value={query,rewritten,modeUsed,results:selected,needsReview:selected.length===0||selected[0].rerankScore<0.15,elapsedMs,cacheHit:false};
   if(cacheKey){
    if(this.resultCache.size>=64)this.resultCache.clear();
-   this.resultCache.set(cacheKey,{revision:this.index.db.prepare('SELECT total_changes() AS n').get().n,at:Date.now(),value:structuredClone(value)});
+   this.resultCache.set(cacheKey,{revision:this.index.db.prepare('SELECT total_changes() AS n').get().n,dataVersion:this.index.db.prepare('PRAGMA data_version').get().data_version,at:Date.now(),value:structuredClone(value)});
   }
   return value;
  }
