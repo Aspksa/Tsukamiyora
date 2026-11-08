@@ -8,6 +8,7 @@ import { ConversationMemory } from './rag-memory.js';
 import { ChatContext } from './chat-context.js';
 import { CloudRu } from './cloudru.js';
 import { ChatService } from './chat-service.js';
+import { NeuralRag } from './rag-neural.js';
 import { createAutoIndexer } from './rag-auto.js';
 import { tasks, metrics, modules, events } from './runtime.js';
 import { mkdirSync, appendFileSync, readFileSync } from 'node:fs';
@@ -79,6 +80,21 @@ app.get('/api/memory/:conversationId',async(req,reply)=>{
 });
 app.post('/api/rag/semantic/index',async(req,reply)=>{try{return ragIntelligence.sync({limit:Number(req.body?.limit??500)});}catch(e){reply.code(400);return {error:e.message};}});
 app.get('/api/rag/semantic/search',async(req,reply)=>{try{return {results:ragIntelligence.semantic(req.query?.q??'',{limit:Number(req.query?.limit??5)})};}catch(e){reply.code(400);return {error:e.message};}});
+// Neural search is opt-in: a model must be explicitly supplied per request.
+const neuralByModel=new Map();
+const neural=model=>{
+ if(typeof model!=='string'||!model.trim()||model.length>256||!/^[\\w./:-]+$/.test(model))throw Error('Invalid embedding model');
+ if(!neuralByModel.has(model))neuralByModel.set(model,new NeuralRag(db,cloud,{model}));
+ return neuralByModel.get(model);
+};
+app.post('/api/rag/neural/index',async(req,reply)=>{try{
+ const engine=neural(req.body?.model);
+ return await engine.sync({limit:req.body?.limit??25});
+}catch(e){reply.code(e.status||400);return {error:e.message};}});
+app.post('/api/rag/neural/search',async(req,reply)=>{try{
+ const engine=neural(req.body?.model);
+ return {results:await engine.search(req.body?.query,{limit:req.body?.limit??5})};
+}catch(e){reply.code(e.status||400);return {error:e.message};}});
 app.get('/api/rag/duplicates',async(req,reply)=>{try{return {duplicates:ragIntelligence.duplicates({limit:Number(req.query?.limit??100)})};}catch(e){reply.code(400);return {error:e.message};}});
 app.get('/api/rag/contradictions',async(req,reply)=>{try{return {contradictions:ragIntelligence.contradictions({limit:Number(req.query?.limit??100)})};}catch(e){reply.code(400);return {error:e.message};}});
 app.get('/api/rag/graph',async(req,reply)=>{try{return {relations:ragIntelligence.graph(req.query?.subject??'')};}catch(e){reply.code(400);return {error:e.message};}});
