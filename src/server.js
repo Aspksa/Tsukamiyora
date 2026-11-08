@@ -50,6 +50,7 @@ import { runDocumentRetrievalBenchmark } from './agent-document-benchmark.js';
 import { evaluateLabeledDocuments, compareLabeledDocumentModes } from './agent-labeled-document-eval.js';
 import { createAgentEvaluationDrafts } from './agent-evaluation-drafts.js';
 import { partitionLabeledCases } from './agent-evaluation-split.js';
+import { createAgentEvaluationHistory } from './agent-evaluation-history.js';
 import { diagnoseAgents } from './rag-agent-diagnostics.js';
 import { assessCloudBudget } from './cloud-budget.js';
 import { createRagQualityMonitor } from './rag-quality-monitor.js';
@@ -62,6 +63,7 @@ await app.register(websocket);
 const db=openStorage();
 const rag=new KnowledgeIndex(db);
 const agentEvaluationDrafts=createAgentEvaluationDrafts(db);
+const agentEvaluationHistory=createAgentEvaluationHistory(db);
 const ragPipeline=new RagPipeline(rag);
 const ragIntelligence=new RagIntelligence(db);
 const lifecycle=new KnowledgeLifecycle(db);
@@ -236,6 +238,7 @@ app.addHook('onRequest',async(req,reply)=>{
 app.get('/api/rag/agents/academy/documents/drafts',async(req,reply)=>{try{return {items:agentEvaluationDrafts.list({limit:Number(req.query?.limit??30)})};}catch(e){reply.code(400);return {error:e.message};}});
 app.get('/api/rag/agents/academy/documents/drafts/:id',async(req,reply)=>{try{return agentEvaluationDrafts.detail(Number(req.params.id));}catch(e){reply.code(400);return {error:e.message};}});
 app.post('/api/rag/agents/academy/documents/drafts/review',async(req,reply)=>{try{return agentEvaluationDrafts.review(req.body??{});}catch(e){reply.code(400);return {error:e.message};}});
+app.get('/api/rag/agents/academy/documents/evaluations/history',async(req,reply)=>{try{return {items:agentEvaluationHistory.list({limit:Number(req.query?.limit??30)})};}catch(e){reply.code(400);return {error:e.message};}});
 app.post('/api/rag/agents/academy/documents/drafts/validation',async(req,reply)=>{try{
  const approved=agentEvaluationDrafts.approved();
  const split=partitionLabeledCases(approved,{validationFraction:Number(req.body?.validationFraction??0.25)});
@@ -243,7 +246,8 @@ app.post('/api/rag/agents/academy/documents/drafts/validation',async(req,reply)=
  const limit=Number(req.body?.limit??5);
  const baseline=evaluateLabeledDocuments(rag,{cases:split.validation,limit,mode:'lexical'});
  const candidate=evaluateLabeledDocuments(rag,{cases:split.validation,limit,mode:'adaptive'});
- return {developmentCount:split.development.length,validationCount:split.validation.length,
+ const decision=agentEvaluationHistory.record({cases:split.validation,baseline,candidate,mode:'adaptive'});
+ return {decision,developmentCount:split.development.length,validationCount:split.validation.length,
   developmentSources:split.developmentSources,validationSources:split.validationSources,
   sourceDisjoint:true,baseline:{hitAtK:baseline.hitAtK,mrrAtK:baseline.mrrAtK},
   candidate:{hitAtK:candidate.hitAtK,mrrAtK:candidate.mrrAtK},
