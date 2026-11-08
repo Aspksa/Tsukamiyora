@@ -87,3 +87,21 @@ test('hybrid rank fusion prefers documents supported by both retrievers',()=>{
   assert.ok(hybrid.results.every(x=>pipeline.verifyCitation(x.citation)));
  }finally{db.close();}
 });
+
+test('feedback reranking stays bounded and query-specific',()=>{
+ const db=new DatabaseSync(':memory:');
+ try{
+  const index=new KnowledgeIndex(db);
+  index.ingest({id:'a',title:'A',text:'масло двигатель автомобиль'});
+  index.ingest({id:'b',title:'B',text:'масло двигатель руководство'});
+  const pipeline=new RagPipeline(index);
+  const before=pipeline.retrieve('масло двигатель',{mode:'lexical',limit:2});
+  for(let i=0;i<20;i++)pipeline.intelligence.rate({query:'масло двигатель',sourceId:'b',helpful:true});
+  const after=pipeline.retrieve('масло двигатель',{mode:'lexical',limit:2});
+  assert.equal(after.results.length,2);
+  assert.ok(after.results.every(r=>Math.abs(r.feedbackBoost)<=0.01));
+  assert.ok(after.results.find(r=>r.source_id==='b').feedbackBoost>0);
+  assert.equal(pipeline.intelligence.feedbackScores('другой запрос').size,0);
+  assert.ok(before.results.every(r=>pipeline.verifyCitation(r.citation)));
+ }finally{db.close();}
+});
