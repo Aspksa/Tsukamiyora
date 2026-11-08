@@ -106,7 +106,7 @@ try {
     if (Test-Path -LiteralPath $lockfile) {
       & $npm ci --no-audit --no-fund --ignore-scripts --prefix $root
     } else {
-      & $npm install --no-audit --no-fund --ignore-scripts --prefix $root
+      & $npm install --no-package-lock --no-audit --no-fund --ignore-scripts --prefix $root
     }
     if ($LASTEXITCODE -ne 0) { throw 'npm install failed' }
   }
