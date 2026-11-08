@@ -18,8 +18,8 @@ export function createAgentAcademy(db,roles){
   const passed=Number(score>=0.8);
   // Fixed benchmark identifiers must not inflate levels through repeated submissions.
   if(taskKey.startsWith('academy:')||taskKey.startsWith('practice:')){
-   const existing=db.prepare('SELECT id FROM agent_training WHERE role=? AND task_key=?').get(role,taskKey);
-   if(existing)return {id:Number(existing.id),role,skill,score,passed:!!passed,duplicate:true,recorded:false};
+   const existing=db.prepare('SELECT id,skill,score,passed FROM agent_training WHERE role=? AND task_key=?').get(role,taskKey);
+   if(existing)return {id:Number(existing.id),role,skill:existing.skill,score:existing.score,passed:!!existing.passed,duplicate:true,recorded:false};
   }
   const result=db.prepare('INSERT INTO agent_training(role,skill,task_key,score,passed,evidence) VALUES(?,?,?,?,?,?)').run(role,skill.trim(),taskKey.trim(),score,passed,evidence.trim());
   return {id:Number(result.lastInsertRowid),role,skill,score,passed:!!passed,duplicate:false,recorded:true};
