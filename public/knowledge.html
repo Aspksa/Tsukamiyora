@@ -18,6 +18,7 @@ a{color:#dfc58b} .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax
 </div>
 <section><h2>Контроль лимитов Cloud.ru</h2><pre id="cloudBudget">Загрузка…</pre></section>
 <section><h2>Эталон качества RAG</h2><pre id="qualityBaseline">Загрузка…</pre></section>
+<section><h2>Проверка поиска по документам</h2><pre id="agentDocumentBenchmark">Загрузка…</pre><small>Индексация шести учебных документов в изолированной SQLite и оценка поиска.</small></section>
 <section><h2>Проверка возможностей</h2><pre id="agentCapabilities">Загрузка…</pre><small>Восемь локальных проверок памяти, поиска, диагностики и безопасности.</small></section>
 <section><h2>Анализ ошибок</h2><pre id="agentFailures">Загрузка…</pre><small>Причины сбоев и рекомендации без автоматических исправлений.</small></section>
 <section><h2>Опыт агентов</h2><pre id="agentExperience">Загрузка…</pre><small>История завершённых, ошибочных и прерванных задач без самооценки.</small></section>
@@ -34,7 +35,7 @@ a{color:#dfc58b} .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax
 <section><h2>Журнал решений агентов</h2><pre id="reviews">Загрузка…</pre></section>
 <script>
 async function refresh(){
- const endpoints=[['agentCapabilities','/api/rag/agents/academy/capabilities'],['agentFailures','/api/rag/agents/failures'],['agentExperience','/api/rag/agents/experience'],['agentTaskStatus','/api/rag/agents/tasks/status'],['agentTaskList','/api/rag/agents/tasks'],['agentDevelopment','/api/rag/agents/academy/development'],['trainingScheduler','/api/rag/agents/academy/scheduler'],['agentAcademy','/api/rag/agents/academy/profiles'],['cloudBudget','/api/cloud/budget'],['qualityBaseline','/api/rag/evaluate/baseline'],['agentDiagnostics','/api/rag/agents/coordinator/diagnostics'],['cloudUsage','/api/cloud/usage'],['agentActivity','/api/rag/agents/coordinator/activity?limit=20'],['indexer','/api/rag/indexer/status'],['guardian','/api/rag/guardian/status'],['history','/api/rag/guardian/history?limit=15'],['reviews','/api/rag/agents/experience/reviews?limit=20'],['backups','/api/system/backups?limit=10']];
+ const endpoints=[['agentDocumentBenchmark','/api/rag/agents/academy/documents/benchmark'],['agentCapabilities','/api/rag/agents/academy/capabilities'],['agentFailures','/api/rag/agents/failures'],['agentExperience','/api/rag/agents/experience'],['agentTaskStatus','/api/rag/agents/tasks/status'],['agentTaskList','/api/rag/agents/tasks'],['agentDevelopment','/api/rag/agents/academy/development'],['trainingScheduler','/api/rag/agents/academy/scheduler'],['agentAcademy','/api/rag/agents/academy/profiles'],['cloudBudget','/api/cloud/budget'],['qualityBaseline','/api/rag/evaluate/baseline'],['agentDiagnostics','/api/rag/agents/coordinator/diagnostics'],['cloudUsage','/api/cloud/usage'],['agentActivity','/api/rag/agents/coordinator/activity?limit=20'],['indexer','/api/rag/indexer/status'],['guardian','/api/rag/guardian/status'],['history','/api/rag/guardian/history?limit=15'],['reviews','/api/rag/agents/experience/reviews?limit=20'],['backups','/api/system/backups?limit=10']];
  await Promise.all(endpoints.map(async([id,url])=>{
   const target=document.getElementById(id);
   try{const response=await fetch(url,{cache:'no-store'});if(!response.ok)throw Error('HTTP '+response.status);
