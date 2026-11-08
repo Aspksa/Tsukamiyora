@@ -1,0 +1,44 @@
+name: RAG and core tests
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: core-tests-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  tests:
+    name: Node 22 / ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    timeout-minutes: 20
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Install Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      # The repository currently has no package-lock.json. Use npm install
+      # without generating a lockfile; switch to npm ci once a lockfile lands.
+      - name: Install dependencies
+        run: npm install --no-package-lock --ignore-scripts --no-audit --no-fund
+      - name: Check module syntax
+        shell: bash
+        run: |
+          for file in src/rag*.js src/cloud-embeddings.js tests/rag*.test.js; do
+            node --check "$file"
+          done
+      - name: Run all tests
+        run: npm test
