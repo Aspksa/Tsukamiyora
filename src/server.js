@@ -35,6 +35,7 @@ import { RagAgentExperience } from './rag-agent-experience.js';
 import { createRagAgentCoordinator } from './rag-agent-coordinator.js';
 import { createAgentAcademy } from './agent-academy.js';
 import { availableAgentExams, gradeAgentExam } from './agent-exams.js';
+import { availableAgentPractice, runAgentPractice } from './agent-practice.js';
 import { diagnoseAgents } from './rag-agent-diagnostics.js';
 import { assessCloudBudget } from './cloud-budget.js';
 import { createRagQualityMonitor } from './rag-quality-monitor.js';
@@ -181,6 +182,8 @@ app.post('/api/rag/agents/experience',async(req,reply)=>{try{const result=agentE
 app.post('/api/rag/agents/experience/review',async(req,reply)=>{try{return agentExperience.review(req.body??{});}catch(e){reply.code(400);return {error:e.message};}});
 app.get('/api/rag/agents/coordinator/diagnostics',async()=>diagnoseAgents({activity:agentCoordinator.activity({limit:100}),queue:agentCoordinator.status().queue,cloud:cloud.usageMetrics()}));
 app.get('/api/rag/agents/coordinator/activity',async(req,reply)=>{try{return {items:agentCoordinator.activity({limit:Number(req.query?.limit??30)})};}catch(e){reply.code(400);return {error:e.message};}});
+app.get('/api/rag/agents/academy/practice',async()=>({tasks:availableAgentPractice(),offline:true}));
+app.post('/api/rag/agents/academy/practice/:role',async(req,reply)=>{try{const result=runAgentPractice(req.params.role);const saved=agentAcademy.record(result);return {...saved,taskKey:result.taskKey,passed:result.passed,offline:true};}catch(e){reply.code(400);return {error:e.message};}});
 app.get('/api/rag/agents/academy/exams',async()=>({roles:availableAgentExams(),grading:'server-side deterministic',independent:false}));
 app.post('/api/rag/agents/academy/exams/grade',async(req,reply)=>{try{const result=gradeAgentExam(req.body??{});const saved=agentAcademy.record(result);return {...saved,correct:result.correct,total:result.total};}catch(e){reply.code(400);return {error:e.message};}});
 app.get('/api/rag/agents/academy/profiles',async()=>({items:agentAcademy.profiles()}));
