@@ -69,8 +69,7 @@ mkdirSync('logs',{recursive:true});
 const log=(message)=>appendFileSync('logs/core.jsonl',JSON.stringify({at:new Date().toISOString(),message})+'\n');
 const autoIndex=createAutoIndexer(db,{log});
 const guardianScheduler=createGuardianScheduler(db,{log});
-const agentAuditTimer=setInterval(()=>{try{agentCoordinator.enqueueAudit();}catch(e){log({event:'rag:agent-audit-error',error:String(e)});}},30*60*1000);
-agentAuditTimer.unref();
+let agentAuditTimer=null;
 app.addHook('onRequest',async(req,reply)=>{
  const host=req.headers.host;
  const expectedPort=String(process.env.TSUKAMIYORA_PORT||4177);
@@ -256,6 +255,6 @@ app.get('/ws',{websocket:true},(socket)=>{
 const port=Number(process.env.TSUKAMIYORA_PORT||4177);
 if(!Number.isInteger(port)||port<1||port>65535)throw Error('Invalid port');
 let stopping=false;
-async function stop(){if(stopping)return;stopping=true;try{clearInterval(agentAuditTimer);autoIndex.stop();guardianScheduler.stop();agentCoordinator.stop();tasks.close();await app.close();db.close();}catch(e){log(String(e));process.exitCode=1;}}
+async function stop(){if(stopping)return;stopping=true;try{if(agentAuditTimer)clearInterval(agentAuditTimer);autoIndex.stop();guardianScheduler.stop();agentCoordinator.stop();tasks.close();await app.close();db.close();}catch(e){log(String(e));process.exitCode=1;}}
 process.on('SIGINT',stop);process.on('SIGTERM',stop);
-try{await app.listen({host:'127.0.0.1',port});log('Listening on '+port);autoIndex.start();guardianScheduler.start();}catch(e){log(String(e));console.error(e);process.exitCode=1;await stop();}
+try{await app.listen({host:'127.0.0.1',port});log('Listening on '+port);autoIndex.start();guardianScheduler.start();agentAuditTimer=setInterval(()=>{try{agentCoordinator.enqueueAudit();}catch(error){log({event:'rag:agent-audit-error',error:String(error)});}},30*60*1000);agentAuditTimer.unref();agentCoordinator.enqueueAudit();}catch(e){log(String(e));console.error(e);process.exitCode=1;await stop();}
