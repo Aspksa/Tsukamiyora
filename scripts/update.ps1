@@ -44,6 +44,7 @@ try {
     & $node --test tests/runtime.test.js tests/restore.test.js
     if ($LASTEXITCODE -ne 0) { throw 'New revision tests failed' }
   } finally { Pop-Location }
+  # A preflighted fast-forward changes only tracked code; user data is left intact.
   Git -argsList @('merge','--ff-only','origin/main') | Out-Null
   try {
     & $node --check src/server.js
@@ -52,6 +53,7 @@ try {
     if ($LASTEXITCODE -ne 0) { throw 'Post-update supervisor syntax failed' }
   } catch {
     Write-Warning "Update validation failed. Rolling code back to $before"
+    if ((git status --porcelain)) { throw 'Post-update changes detected; automatic rollback blocked to protect local edits' }
     Git -argsList @('reset','--hard',$before) | Out-Null
     throw
   }
