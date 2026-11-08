@@ -93,7 +93,7 @@ jobs:
             if ($health.status -ne 'ok' -or $health.database -ne 'ok' -or -not $health.instanceId) { throw 'Portable health check failed' }
             $chat = Invoke-WebRequest 'http://127.0.0.1:4207/chat' -UseBasicParsing -TimeoutSec 5
             if ($chat.StatusCode -ne 200 -or $chat.Content -notmatch 'id="welcome"' -or $chat.Content -notmatch 'id="message"') { throw 'Portable chat page not served' }
-            $shortcut = Join-Path $target 'Открыть Tsukamiyora.url'
+            $shortcut = Join-Path $target 'Tsukamiyora.url'
             if (-not (Test-Path -LiteralPath $shortcut)) { throw 'Browser shortcut was not created' }
             if ((Get-Content -LiteralPath $shortcut -Raw) -notmatch 'http://127.0.0.1:4207/chat') { throw 'Shortcut points to the wrong port' }
             & '.\Tsukamiyora.bat'

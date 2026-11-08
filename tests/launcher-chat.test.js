@@ -16,7 +16,8 @@ test('BAT launcher checks chat readiness before opening the browser',()=>{
  assert.match(launcher,/OpenChat \$candidate/);
  assert.match(launcher,/UseShellExecute = \$true/);
  assert.match(launcher,/Open this address in your browser:/);
- assert.match(launcher,/Открыть Tsukamiyora\.url/);
+ assert.match(launcher,/WriteAllText/);
+ assert.match(launcher,/Tsukamiyora\.url/);
  assert.match(launcher,/-ArgumentList 'src\/supervisor\.js' -WorkingDirectory \$root/);
  assert.doesNotMatch(launcher,/-ArgumentList @\(\$server\)/);
  assert.match(bat,/if not defined CI pause/);

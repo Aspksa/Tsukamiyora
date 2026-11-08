@@ -32,7 +32,8 @@ function OpenChat([int]$port) {
   Log "Open this address in your browser: $url"
   try {
     # A desktop shortcut remains usable if the browser association is broken.
-    Set-Content -LiteralPath (Join-Path $root 'Открыть Tsukamiyora.url') -Value @('[InternetShortcut]',"URL=$url") -Encoding ASCII -ErrorAction Stop
+    $shortcut = Join-Path $root 'Tsukamiyora.url'
+    [System.IO.File]::WriteAllText($shortcut, "[InternetShortcut]`r`nURL=$url`r`n", [Text.Encoding]::ASCII)
   } catch { Log "Could not create browser shortcut: $($_.Exception.Message)" }
   if ($env:CI) { Log 'CI mode: browser launch skipped'; return }
   try {
