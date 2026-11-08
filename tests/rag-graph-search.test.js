@@ -1,0 +1,24 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import {DatabaseSync} from 'node:sqlite';
+import {KnowledgeIndex} from '../src/rag.js';
+import {RagRelationGraph} from '../src/rag-relations.js';
+import {GraphAwareRag} from '../src/rag-graph-search.js';
+
+test('graph-aware search returns grounded linked documents with citations',()=>{
+ const db=new DatabaseSync(':memory:');
+ try{
+  const index=new KnowledgeIndex(db),relations=new RagRelationGraph(db);
+  index.ingest({id:'file:a',title:'A',text:'Двигатель -> использует -> Масло'});
+  index.ingest({id:'file:b',title:'B',text:'Масло -> имеет -> Вязкость'});
+  index.ingest({id:'chat:secret',title:'Private',text:'Двигатель секрет'});
+  relations.extract({sourceId:'file:a'});
+  relations.extract({sourceId:'file:b'});
+  const result=new GraphAwareRag(index).retrieve('Двигатель',{maxHops:2,limit:5});
+  assert.equal(result.graph.edges.length,2);
+  assert.ok(result.results.some(x=>x.source_id==='file:b'));
+  assert.ok(result.results.every(x=>x.citation?.sourceId===x.source_id));
+  assert.ok(result.results.every(x=>!x.source_id.startsWith('chat:')));
+  assert.equal(result.remoteCalls,0);
+ }finally{db.close();}
+});
