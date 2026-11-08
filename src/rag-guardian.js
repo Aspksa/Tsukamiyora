@@ -10,7 +10,8 @@ export class RagKnowledgeGuardian {
   const facts=this.review.inspect({limit,staleDays});
   const actions=[];
   if(audit.conflicts.length||facts.some(f=>f.conflicting))actions.push({kind:'resolve-conflicts',count:Math.max(audit.conflicts.length,facts.filter(f=>f.conflicting).length),requiresApproval:true});
-  if(audit.stale.length||facts.some(f=>f.alternatives.some(a=>a.needsReview)))actions.push({kind:'review-stale-evidence',count:audit.stale.length,requiresApproval:true});
+  const staleAlternatives=facts.reduce((n,f)=>n+f.alternatives.filter(a=>a.needsReview).length,0);
+  if(audit.stale.length||staleAlternatives)actions.push({kind:'review-stale-evidence',count:Math.max(audit.stale.length,staleAlternatives),requiresApproval:true});
   if(audit.unsupported.length)actions.push({kind:'review-unsupported-facts',count:audit.unsupported.length,requiresApproval:true});
   if(audit.danglingTopicLinks)actions.push({kind:'repair-dangling-topic-links',count:audit.danglingTopicLinks,requiresApproval:true});
   return {summary:{conflicts:audit.conflicts.length,stale:audit.stale.length,unsupported:audit.unsupported.length,danglingTopicLinks:audit.danglingTopicLinks},actions,requiresReview:actions.length>0,remoteCalls:0,applied:false};
