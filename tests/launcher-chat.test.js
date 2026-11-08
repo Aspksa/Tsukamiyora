@@ -8,4 +8,6 @@ test('BAT launcher opens the chat rather than a JSON service descriptor',()=>{
  assert.match(launcher,/Start-Process "http:\/\/127\.0\.0\.1:\$port\/chat"/);
  assert.match(launcher,/Start-Process "http:\/\/127\.0\.0\.1:\$candidate\/chat"/);
  assert.doesNotMatch(launcher,/Start-Process "http:\/\/127\.0\.0\.1:\$port\/"/);
+ assert.match(launcher,/-ArgumentList 'src\/supervisor\.js' -WorkingDirectory \$root/);
+ assert.doesNotMatch(launcher,/-ArgumentList @\(\$server\)/);
 });

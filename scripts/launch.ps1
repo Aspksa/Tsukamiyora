@@ -94,27 +94,33 @@ try {
     if (-not $free) { throw 'No free port in range 4177-4277' }
     $port = $free
   }
-  $npm = Join-Path (Split-Path -Parent $node) 'npm.cmd'
-  if (-not (Test-Path -LiteralPath $npm)) {
+  # Invoke npm through the Node executable instead of npm.cmd: cmd.exe can
+  # corrupt arguments containing %, !, ^, &, and parentheses on portable drives.
+  $npmCli = Join-Path (Split-Path -Parent $node) 'node_modules\npm\bin\npm-cli.js'
+  if (-not (Test-Path -LiteralPath $npmCli)) {
     $npmCommand = Get-Command npm.cmd -ErrorAction SilentlyContinue
-    if ($npmCommand) { $npm = $npmCommand.Source }
-    else { throw 'npm.cmd missing; install full Node.js distribution' }
+    if ($npmCommand) {
+      $npmCli = Join-Path (Split-Path -Parent $npmCommand.Source) 'node_modules\npm\bin\npm-cli.js'
+    }
   }
   if ((-not (Test-Path -LiteralPath (Join-Path $root 'node_modules\\fastify'))) -or (-not (Test-Path -LiteralPath (Join-Path $root 'node_modules\\@fastify\\websocket')))) {
-    Log 'Installing npm dependencies'
+    if (-not (Test-Path -LiteralPath $npmCli)) { throw 'npm-cli.js not found; install a complete Node.js distribution' }
+    Log 'Installing npm dependencies using node.exe (without cmd.exe)'
     $lockfile = Join-Path $root 'package-lock.json'
     if (Test-Path -LiteralPath $lockfile) {
-      & $npm ci --no-audit --no-fund --ignore-scripts --prefix $root
+      & $node $npmCli ci --no-audit --no-fund --ignore-scripts
     } else {
-      & $npm install --no-package-lock --no-audit --no-fund --ignore-scripts --prefix $root
+      & $node $npmCli install --no-package-lock --no-audit --no-fund --ignore-scripts
     }
-    if ($LASTEXITCODE -ne 0) { throw 'npm install failed' }
+    if ($LASTEXITCODE -ne 0) { throw 'npm install failed; see the output above' }
   }
   $env:TSUKAMIYORA_PORT = [string]$port
   $server = Join-Path $root 'src\supervisor.js'
   if (-not (Test-Path -LiteralPath $server)) { throw 'Missing src\supervisor.js' }
   Log "Starting Node.js $version, port $port"
-  $proc = Start-Process -FilePath $node -ArgumentList @($server) -WorkingDirectory $root -PassThru -WindowStyle Hidden -RedirectStandardOutput (Join-Path $logs 'server-stdout.log') -RedirectStandardError (Join-Path $logs 'server-stderr.log')
+  # Use a path relative to WorkingDirectory. Start-Process strips quoting from
+  # a single absolute -ArgumentList path containing spaces and non-ASCII text.
+  $proc = Start-Process -FilePath $node -ArgumentList 'src/supervisor.js' -WorkingDirectory $root -PassThru -WindowStyle Hidden -RedirectStandardOutput (Join-Path $logs 'server-stdout.log') -RedirectStandardError (Join-Path $logs 'server-stderr.log')
   Log "Server PID=$($proc.Id)"
   $ready = $false
   for ($i=0; $i -lt 30; $i++) {
@@ -122,12 +128,19 @@ try {
     if (Healthy $port) { $ready = $true; break }
     if ($proc.HasExited) { break }
   }
-  if (-not $ready) { throw 'Server failed health check; inspect logs/server-stderr.log' }
+  if (-not $ready) {
+    $stderr = Join-Path $logs 'server-stderr.log'
+    if (Test-Path -LiteralPath $stderr) {
+      Get-Content -LiteralPath $stderr -Tail 25 -ErrorAction SilentlyContinue | ForEach-Object { Log "Server: $_" }
+    }
+    throw 'Server failed health check; inspect logs/server-stderr.log'
+  }
   Log 'Health check passed'
   if (-not $env:CI) { Start-Process "http://127.0.0.1:$port/chat" }
   exit 0
 } catch {
   Log "ERROR: $($_.Exception.Message)"
+  Log "DETAIL: $($_.ScriptStackTrace)"
   exit 1
 } finally {
   if ($locked) { $mutex.ReleaseMutex() }
