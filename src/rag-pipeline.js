@@ -1,13 +1,14 @@
 // Local retrieval orchestration. No model calls or external network traffic.
 import { RagIntelligence } from './rag-intelligence.js';
 import { rerankRag } from './rag-reranker.js';
+import { expandMultilingualQuery } from './rag-multilingual.js';
 const words=text=>(text.toLocaleLowerCase('ru').match(/[\p{L}\p{N}]{2,}/gu)||[]);
 const unique=items=>[...new Set(items)];
 export class RagPipeline {
  constructor(index){this.index=index;this.intelligence=new RagIntelligence(index.db);this.stats={queries:0,hits:0,empty:0,totalMs:0,semanticFallbacks:0,verifiedCitations:0,correctivePasses:0};}
  rewrite(query){
   if(typeof query!=='string'||!query.trim()||query.length>1000||!words(query).length)throw Error('Invalid query');
-  return unique(words(query)).slice(0,24).join(' ');
+  return expandMultilingualQuery(query,{maxTerms:24});
  }
  retrieve(query,{limit=5,mode='adaptive',allowedChatSourceIds=null}={}){
   if(!Number.isInteger(limit)||limit<1||limit>30||!['adaptive','lexical','semantic','hybrid'].includes(mode))throw Error('Invalid retrieval options');
