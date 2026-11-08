@@ -22,3 +22,18 @@ test('graph-aware search returns grounded linked documents with citations',()=>{
   assert.equal(result.remoteCalls,0);
  }finally{db.close();}
 });
+
+test('graph citations point to a chunk containing the explicit relation',()=>{
+ const db=new DatabaseSync(':memory:');
+ try{
+  const index=new KnowledgeIndex(db),relations=new RagRelationGraph(db);
+  const filler='пустой '.repeat(40);
+  index.ingest({id:'file:long',title:'Long',text:filler+'\nДвигатель -> использует -> Масло',chunkSize:200});
+  relations.extract({sourceId:'file:long'});
+  const result=new GraphAwareRag(index).retrieve('Двигатель',{limit:5});
+  const graphHit=result.results.find(x=>x.graphEvidence);
+  assert.ok(graphHit);
+  assert.match(graphHit.body,/Двигатель -> использует -> Масло/);
+  assert.equal(graphHit.citation.chunkId,graphHit.id);
+ }finally{db.close();}
+});
