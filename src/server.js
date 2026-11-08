@@ -2,6 +2,7 @@ import Fastify from 'fastify';
 import websocket from '@fastify/websocket';
 import { openStorage } from './storage.js';
 import { KnowledgeIndex } from './rag.js';
+import { RagPipeline } from './rag-pipeline.js';
 import { createAutoIndexer } from './rag-auto.js';
 import { tasks, metrics, modules, events } from './runtime.js';
 import { mkdirSync, appendFileSync } from 'node:fs';
@@ -9,6 +10,7 @@ const app=Fastify({logger:false,bodyLimit:1048576});
 await app.register(websocket);
 const db=openStorage();
 const rag=new KnowledgeIndex(db);
+const ragPipeline=new RagPipeline(rag);
 mkdirSync('logs',{recursive:true});
 const log=(message)=>appendFileSync('logs/core.jsonl',JSON.stringify({at:new Date().toISOString(),message})+'\n');
 const autoIndex=createAutoIndexer(db,{log});
@@ -27,6 +29,7 @@ app.post('/api/tasks',async(req,reply)=>{
 app.get('/api/tasks/:id',async(req,reply)=>{const task=tasks.get(req.params.id);if(!task){reply.code(404);return {error:'not_found'};}return task;});
 
 app.get('/api/rag/status',async()=>({
+ retrieval:ragPipeline.metrics(),
  sources:db.prepare('SELECT COUNT(*) AS count FROM rag_sources').get().count,
  chunks:db.prepare('SELECT COUNT(*) AS count FROM rag_chunks').get().count,
  relations:db.prepare('SELECT COUNT(*) AS count FROM rag_edges').get().count,
@@ -36,12 +39,16 @@ app.post('/api/rag/documents',async(req,reply)=>{
  try{const result=rag.ingest(req.body??{});reply.code(result.changed?201:200);return result;}
  catch(error){reply.code(400);return {error:String(error.message)};}
 });
+app.get('/api/rag/retrieve',async(req,reply)=>{
+ try{return ragPipeline.retrieve(req.query?.q??'',{limit:Number(req.query?.limit??5)});}
+ catch(error){reply.code(400);return {error:String(error.message)};}
+});
 app.get('/api/rag/search',async(req,reply)=>{
  try{return {results:rag.search(req.query?.q??'',{limit:Number(req.query?.limit??5)})};}
  catch(error){reply.code(400);return {error:String(error.message)};}
 });
 app.get('/api/rag/context',async(req,reply)=>{
- try{return {context:rag.context(req.query?.q??'',{limit:Number(req.query?.limit??5)})};}
+ try{return ragPipeline.context(req.query?.q??'',{limit:Number(req.query?.limit??5)});}
  catch(error){reply.code(400);return {error:String(error.message)};}
 });
 app.post('/api/rag/relations',async(req,reply)=>{
