@@ -26,3 +26,12 @@ test('chat keeps latest user message under large RAG context and history',()=>{
   assert.ok(prepared.messages.reduce((n,m)=>n+m.content.length,0)<=12000);
  }finally{db.close();}
 });
+
+test('chat rejects IDs that would overflow assistant message storage',()=>{
+ const db=new DatabaseSync(':memory:');
+ try{
+  const chat=new ChatService(db,{async *stream(){yield 'ok';}});
+  assert.throws(()=>chat.prepare({conversationId:'safe',messageId:'x'.repeat(191),message:'Привет'}),/Invalid chat request/);
+  assert.equal(chat.context.memory.history('safe').length,0);
+ }finally{db.close();}
+});
