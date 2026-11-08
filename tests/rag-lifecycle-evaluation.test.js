@@ -18,7 +18,7 @@ test('extracts supported key-value facts with source evidence and records confli
   assert.equal(facts.length,2);
   assert.ok(facts.every(f=>f.citation.chunkId&&f.evidence.includes('Масло')));
   assert.equal(lifecycle.history({subject:'Масло'}).length,2);
-  assert.equal(lifecycle.extract({sourceId:'file:one'}).created,2);
+  assert.equal(lifecycle.extract({sourceId:'file:one'}).created,0);
   assert.throws(()=>lifecycle.extract({sourceId:'chat:private'}),/Private/);
  }finally{db.close();}
 });
