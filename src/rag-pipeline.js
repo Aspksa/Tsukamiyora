@@ -12,7 +12,7 @@ export class RagPipeline {
   if(!Number.isInteger(limit)||limit<1||limit>30||!['adaptive','lexical','semantic','hybrid'].includes(mode))throw Error('Invalid retrieval options');
   const start=performance.now(),rewritten=this.rewrite(query);
   const allowed=allowedChatSourceIds instanceof Set?allowedChatSourceIds:new Set();
-  const lexical=(mode==='semantic'?[]:this.index.search(rewritten,{limit:Math.min(30,limit*5)})).filter(hit=>!hit.source_id.startsWith('chat:')||allowed.has(hit.source_id));
+  const lexical=(mode==='semantic'?[]:this.index.search(rewritten,{limit:Math.min(30,limit*5),allowedChatSourceIds:allowed}));
   const ranked=lexical.map((hit,i)=>{
    const terms=unique(words(query)),body=new Set(words(hit.body));
    const coverage=terms.length?terms.filter(t=>body.has(t)).length/terms.length:0;
