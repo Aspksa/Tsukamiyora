@@ -1,5 +1,6 @@
 // Local retrieval orchestration. No model calls or external network traffic.
 import { RagIntelligence } from './rag-intelligence.js';
+import { rerankRag } from './rag-reranker.js';
 const words=text=>(text.toLocaleLowerCase('ru').match(/[\p{L}\p{N}]{2,}/gu)||[]);
 const unique=items=>[...new Set(items)];
 export class RagPipeline {
@@ -45,10 +46,8 @@ export class RagPipeline {
   // Feedback applies only to the same query; cap its influence to avoid
   // overwhelming relevance or allowing feedback to bypass source ACLs.
   const feedback=this.intelligence.feedbackScores(query);
-  selected=selected.filter(hit=>(!hit.source_id.startsWith('chat:')||allowed.has(hit.source_id))&&this.verifyCitation(hit.citation))
-   .map(hit=>({...hit,feedbackBoost:feedback.get(hit.source_id)??0}))
-   .sort((a,b)=>(b.hybridScore??b.relevance)+b.feedbackBoost-(a.hybridScore??a.relevance)-a.feedbackBoost)
-   .slice(0,limit);
+  selected=rerankRag(query,selected.filter(hit=>(!hit.source_id.startsWith('chat:')||allowed.has(hit.source_id))&&this.verifyCitation(hit.citation))
+   .map(hit=>({...hit,feedbackBoost:feedback.get(hit.source_id)??0})),{limit});
   this.stats.verifiedCitations+=selected.length;
   const elapsedMs=Math.round((performance.now()-start)*100)/100;
   this.stats.queries++;this.stats.hits+=selected.length;if(!selected.length)this.stats.empty++;this.stats.totalMs+=elapsedMs;
