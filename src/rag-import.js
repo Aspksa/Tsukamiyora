@@ -10,7 +10,7 @@ export function indexDirectory(db,folder,{maxFiles=2000,maxBytes=1024*1024}={}){
  while(pending.length&&scanned<maxFiles){
   const dir=pending.pop();
   for(const entry of readdirSync(dir,{withFileTypes:true})){
-   if(scanned>=maxFiles)break;
+   if(scanned>=maxFiles){truncated=true;break;}
    if(entry.isSymbolicLink()||entry.name.startsWith('.'))continue;
    const path=join(dir,entry.name);
    if(entry.isDirectory()){pending.push(path);continue;}
@@ -27,7 +27,7 @@ export function indexDirectory(db,folder,{maxFiles=2000,maxBytes=1024*1024}={}){
    }catch{skipped++;}
   }
  }
- if(pending.length===0&&skipped===0){
+ if(pending.length===0&&skipped===0&&!truncated){
   db.exec('CREATE TABLE IF NOT EXISTS rag_file_roots(root TEXT NOT NULL, source_id TEXT NOT NULL, PRIMARY KEY(root,source_id))');
   const old=db.prepare('SELECT source_id FROM rag_file_roots WHERE root=?').all(root);
   for(const row of old){if(!seen.has(row.source_id)){if(rag.removeSource(row.source_id))removed++;db.prepare('DELETE FROM rag_file_roots WHERE root=? AND source_id=?').run(root,row.source_id);}}
