@@ -1,6 +1,7 @@
 import {DatabaseSync} from 'node:sqlite';
 import {existsSync,readdirSync,statSync,realpathSync} from 'node:fs';
 import {join,resolve,sep} from 'node:path';
+import {verifySnapshotChecksum} from './backup-checksum.js';
 
 export function inspectBackups({root=process.cwd(),limit=10}={}){
  if(typeof root!=='string'||!root.trim()||!Number.isInteger(limit)||limit<1||limit>100)throw Error('Invalid backup inspection options');
@@ -17,7 +18,8 @@ export function inspectBackups({root=process.cwd(),limit=10}={}){
     const db=new DatabaseSync(actual,{readOnly:true});
     try{
      const result=db.prepare('PRAGMA integrity_check').get();
-     return {name,size,valid:Object.values(result)[0]==='ok'};
+     const checksum=verifySnapshotChecksum(actual);
+     return {name,size,valid:Object.values(result)[0]==='ok'&&checksum.valid!==false,checksum};
     }finally{db.close();}
    }catch(error){return {name,valid:false,error:String(error)};}
   });
