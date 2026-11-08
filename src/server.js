@@ -217,6 +217,21 @@ app.post('/api/rag/agents/tasks/plan',async(req,reply)=>{try{return planAgentTas
 app.post('/api/rag/agents/tasks/dispatch',async(req,reply)=>{try{return submitPlannedAgentTask(agentTasks,req.body?.text);}catch(e){reply.code(400);return {error:e.message};}});
 app.get('/api/rag/agents/failures',async(req,reply)=>{try{return analyzeAgentFailures(db,{limit:Number(req.query?.limit??100)});}catch(e){reply.code(400);return {error:e.message};}});
 app.post('/api/rag/agents/academy/documents/drafts/generate',async(req,reply)=>{try{return agentEvaluationDrafts.generate({limit:Number(req.body?.limit??20)});}catch(e){reply.code(400);return {error:e.message};}});
+app.addHook('onRequest',async(req,reply)=>{
+ if(!req.url.startsWith('/api/rag/agents/academy/documents/drafts'))return;
+ reply.header('Cache-Control','no-store');
+ const site=req.headers['sec-fetch-site'];
+ if(site==='cross-site'){reply.code(403);return reply.send({error:'cross_site_forbidden'});}
+ if(req.method==='POST'){
+  const origin=req.headers.origin;
+  if(typeof origin!=='string'){reply.code(403);return reply.send({error:'origin_required'});}
+  let parsed;try{parsed=new URL(origin);}catch{reply.code(403);return reply.send({error:'invalid_origin'});}
+  const port=String(process.env.TSUKAMIYORA_PORT||4177);
+  if(parsed.protocol!=='http:'||!['127.0.0.1','localhost'].includes(parsed.hostname)||parsed.port!==port){
+   reply.code(403);return reply.send({error:'forbidden_origin'});
+  }
+ }
+});
 app.get('/api/rag/agents/academy/documents/drafts',async(req,reply)=>{try{return {items:agentEvaluationDrafts.list({limit:Number(req.query?.limit??30)})};}catch(e){reply.code(400);return {error:e.message};}});
 app.get('/api/rag/agents/academy/documents/drafts/:id',async(req,reply)=>{try{return agentEvaluationDrafts.detail(Number(req.params.id));}catch(e){reply.code(400);return {error:e.message};}});
 app.post('/api/rag/agents/academy/documents/drafts/review',async(req,reply)=>{try{return agentEvaluationDrafts.review(req.body??{});}catch(e){reply.code(400);return {error:e.message};}});
