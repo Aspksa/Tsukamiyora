@@ -32,3 +32,24 @@ test('worker hash and rejected payload fail safely', async()=>{
  assert.throws(()=>q.submit('other',[]));
  q.close();
 });
+
+test('queue capacity and priority validation',async()=>{
+ const q=new TaskQueue({concurrency:1,capacity:1,historyLimit:1});
+ const id=q.submit('sum',[1,2,3]);
+ assert.throws(()=>q.submit('sum',[4,5]),/unavailable/);
+ const end=Date.now()+5000;
+ while(['queued','running'].includes(q.get(id).status)){
+  if(Date.now()>end)throw Error('worker timeout');
+  await new Promise(resolve=>setTimeout(resolve,20));
+ }
+ assert.equal(q.get(id).result,6);
+ assert.equal(q.get(id).payload,undefined);
+ assert.throws(()=>q.submit('sum',[1],{priority:11}),/priority/);
+ const next=q.submit('sum',[7]);
+ while(['queued','running'].includes(q.get(next).status)){
+  if(Date.now()>end+5000)throw Error('worker timeout');
+  await new Promise(resolve=>setTimeout(resolve,20));
+ }
+ assert.equal(q.tasks.size,1);
+ q.close();
+});
