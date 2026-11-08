@@ -1,5 +1,5 @@
 import { sep } from 'node:path';
-import { existsSync, mkdirSync, readFileSync, writeFileSync, realpathSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, writeFileSync, realpathSync, watch } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { indexDirectory } from './rag-import.js';
 import { createRagWorkQueue } from './rag-work-queue.js';
@@ -17,6 +17,7 @@ export function loadIndexConfig(root=process.cwd()){
 }
 export function createAutoIndexer(db,{root=process.cwd(),log=()=>{}}={}){
  let timer=null,running=false,closed=false,last=null,runCount=0,skippedCount=0;
+ const watchers=[];let debounce=null;
  const queue=createRagWorkQueue({capacity:2,log});
  const run=()=>{
   if(closed||running){skippedCount++;return {skipped:true};}
@@ -56,8 +57,26 @@ export function createAutoIndexer(db,{root=process.cwd(),log=()=>{}}={}){
   if(!cfg.enabled)return;
   timer=setInterval(()=>{try{enqueue();}catch(error){try{log({event:'rag:error',error:String(error)});}catch{}}},cfg.intervalMinutes*60000);
   timer.unref();
+  // Best-effort event-driven updates; periodic scans remain the fallback.
+  for(const folder of cfg.folders){
+   const path=resolve(root,folder);
+   if(path!==resolve(root)&&!path.startsWith(resolve(root)+sep))continue;
+   if(!existsSync(path))continue;
+   try{
+    const actualRoot=realpathSync(root),actual=realpathSync(path);
+    if(actual!==actualRoot&&!actual.startsWith(actualRoot+sep))continue;
+    const watcher=watch(path,{recursive:process.platform==='win32'},()=>{
+     if(closed)return;
+     if(debounce)clearTimeout(debounce);
+     debounce=setTimeout(()=>{debounce=null;try{enqueue();}catch(error){try{log({event:'rag:watch-error',error:String(error)});}catch{}}},1500);
+     debounce.unref?.();
+    });
+    watcher.on('error',error=>{try{log({event:'rag:watch-error',error:String(error)});}catch{}});
+    watcher.unref();watchers.push(watcher);
+   }catch(error){try{log({event:'rag:watch-unavailable',folder,error:String(error)});}catch{}}
+  }
   queueMicrotask(()=>{try{enqueue();}catch(error){try{log({event:'rag:error',error:String(error)});}catch{}});
  };
- const stop=()=>{closed=true;if(timer)clearInterval(timer);timer=null;queue.stop();};
- return {start,stop,run,enqueue,status:()=>({running,closed,scheduled:Boolean(timer),runCount,skippedCount,last,queue:queue.status()})};
+ const stop=()=>{closed=true;if(timer)clearInterval(timer);timer=null;if(debounce)clearTimeout(debounce);debounce=null;for(const watcher of watchers)watcher.close();watchers.length=0;queue.stop();};
+ return {start,stop,run,enqueue,status:()=>({running,closed,scheduled:Boolean(timer),watchers:watchers.length,runCount,skippedCount,last,queue:queue.status()})};
 }
