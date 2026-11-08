@@ -35,6 +35,13 @@ export class RagAgentExperience {
    )`).run(approved?'approved':'rejected',id);
   return {updated:result.changes===1};
  }
+ pending({limit=30}={}){
+  if(!Number.isInteger(limit)||limit<1||limit>100)throw Error('Invalid pending limit');
+  return this.db.prepare(`SELECT e.id,e.agent_id,e.task_key,e.lesson,e.source_id,e.created_at,
+   CASE WHEN s.id IS NOT NULL AND s.body_hash=e.source_body_hash THEN 1 ELSE 0 END AS evidenceCurrent
+   FROM rag_agent_experience e LEFT JOIN rag_sources s ON s.id=e.source_id
+   WHERE e.status='pending' ORDER BY e.id DESC LIMIT ?`).all(limit);
+ }
  share({taskKey,limit=10}={}){
   if(typeof taskKey!=='string'||!taskKey.trim()||taskKey.length>200||!Number.isInteger(limit)||limit<1||limit>50)throw Error('Invalid experience search');
   // Only explicitly approved lessons with still-existing public evidence can be shared.
