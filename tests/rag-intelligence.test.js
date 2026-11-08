@@ -140,3 +140,21 @@ test('failed vector version migration preserves previous vectors and metadata',(
   assert.equal(upgraded.sync().indexed,1);
  }finally{db.close();}
 });
+
+test('RAG applies feedback before limit so a lower-ranked candidate can be promoted',()=>{
+ const db=new DatabaseSync(':memory:');
+ try{
+  const index=new KnowledgeIndex(db);
+  index.ingest({id:'a',title:'A',text:'кошка собака птица'});
+  index.ingest({id:'b',title:'B',text:'кошка собака птица'});
+  const pipeline=new RagPipeline(index);
+  const query='кошка собака';
+  const baseline=pipeline.retrieve(query,{mode:'lexical',limit:2}).results;
+  assert.equal(baseline.length,2);
+  const preferred=baseline[1].source_id;
+  for(let i=0;i<25;i++)pipeline.intelligence.rate({query,sourceId:preferred,helpful:true});
+  const updated=pipeline.retrieve(query,{mode:'lexical',limit:1}).results;
+  assert.equal(updated.length,1);
+  assert.equal(updated[0].source_id,preferred);
+ }finally{db.close();}
+});
