@@ -1,14 +1,15 @@
 // Local retrieval orchestration. No model calls or external network traffic.
+import { RagIntelligence } from './rag-intelligence.js';
 const words=text=>(text.toLocaleLowerCase('ru').match(/[\p{L}\p{N}]{2,}/gu)||[]);
 const unique=items=>[...new Set(items)];
 export class RagPipeline {
- constructor(index){this.index=index;this.stats={queries:0,hits:0,empty:0,totalMs:0};}
+ constructor(index){this.index=index;this.intelligence=new RagIntelligence(index.db);this.stats={queries:0,hits:0,empty:0,totalMs:0};}
  rewrite(query){
   if(typeof query!=='string'||!query.trim()||query.length>1000)throw Error('Invalid query');
   return unique(words(query)).slice(0,24).join(' ');
  }
  retrieve(query,{limit=5,mode='adaptive'}={}){
-  if(!Number.isInteger(limit)||limit<1||limit>30||!['adaptive','lexical','graph'].includes(mode))throw Error('Invalid retrieval options');
+  if(!Number.isInteger(limit)||limit<1||limit>30||!['adaptive','lexical','graph','semantic','hybrid'].includes(mode))throw Error('Invalid retrieval options');
   const start=performance.now(),rewritten=this.rewrite(query);
   const lexical=this.index.search(rewritten,{limit:Math.min(30,limit*3)});
   const ranked=lexical.map((hit,i)=>{
@@ -16,10 +17,23 @@ export class RagPipeline {
    const coverage=terms.length?terms.filter(t=>body.has(t)).length/terms.length:0;
    return {...hit,relevance:Math.round(coverage*1000)/1000,rank:i+1};
   }).sort((a,b)=>b.relevance-a.relevance||a.rank-b.rank);
-  const selected=ranked.slice(0,limit);
+  let selected=ranked.slice(0,limit),modeUsed='lexical';
+  if(mode==='semantic'||mode==='hybrid'||(mode==='adaptive'&&(!selected.length||selected[0].relevance<0.25))){
+   this.intelligence.sync({limit:500});
+   const semantic=this.intelligence.semantic(query,{limit:Math.min(30,limit*3)});
+   const combined=new Map();
+   if(mode!=='semantic')for(const hit of ranked)combined.set(hit.id,{...hit,hybridScore:hit.relevance*0.65+0.35/(hit.rank+1)});
+   for(const hit of semantic){
+    const old=combined.get(hit.id);
+    const relevance=Math.max(old?.relevance??0,hit.similarity);
+    combined.set(hit.id,{...hit,...old,relevance,hybridScore:(old?.hybridScore??0)+hit.similarity*0.55});
+   }
+   selected=[...combined.values()].sort((a,b)=>b.hybridScore-a.hybridScore).slice(0,limit);
+   modeUsed=mode==='semantic'?'semantic':'hybrid';
+  }
   const elapsedMs=Math.round((performance.now()-start)*100)/100;
   this.stats.queries++;this.stats.hits+=selected.length;if(!selected.length)this.stats.empty++;this.stats.totalMs+=elapsedMs;
-  return {query,rewritten,modeUsed:'lexical',results:selected,needsReview:selected.length===0||selected[0].relevance<0.25,elapsedMs};
+  return {query,rewritten,modeUsed,results:selected,needsReview:selected.length===0||selected[0].relevance<0.25,elapsedMs};
  }
  verifyCitation(citation){
   if(!citation||typeof citation.chunkId!=='string'||typeof citation.sourceId!=='string')return false;
