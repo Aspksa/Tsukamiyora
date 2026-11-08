@@ -5,7 +5,7 @@ const tokens=s=>(s.toLocaleLowerCase('ru').match(/[\p{L}\p{N}]{2,}/gu)||[]).slic
 export class KnowledgeIndex {
  constructor(db){this.db=db;db.exec(`
  CREATE TABLE IF NOT EXISTS rag_sources(id TEXT PRIMARY KEY, title TEXT NOT NULL, body_hash TEXT NOT NULL, updated_at TEXT DEFAULT CURRENT_TIMESTAMP);
- CREATE TABLE IF NOT EXISTS rag_chunks(id TEXT PRIMARY KEY, source_id TEXT NOT NULL REFERENCES rag_sources(id) ON DELETE CASCADE, position INTEGER NOT NULL, body TEXT NOT NULL, body_hash TEXT NOT NULL UNIQUE);
+ CREATE TABLE IF NOT EXISTS rag_chunks(id TEXT PRIMARY KEY, source_id TEXT NOT NULL REFERENCES rag_sources(id) ON DELETE CASCADE, position INTEGER NOT NULL, body TEXT NOT NULL, body_hash TEXT NOT NULL);
  CREATE VIRTUAL TABLE IF NOT EXISTS rag_fts USING fts5(body,content='rag_chunks',content_rowid='rowid',tokenize='unicode61');
  CREATE TRIGGER IF NOT EXISTS rag_insert AFTER INSERT ON rag_chunks BEGIN INSERT INTO rag_fts(rowid,body) VALUES(new.rowid,new.body); END;
  CREATE TRIGGER IF NOT EXISTS rag_delete AFTER DELETE ON rag_chunks BEGIN INSERT INTO rag_fts(rag_fts,rowid,body) VALUES('delete',old.rowid,old.body); END;
