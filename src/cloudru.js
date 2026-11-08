@@ -45,6 +45,33 @@ export class CloudRu {
   if(typeof text!=='string'||!text.trim())throw Object.assign(new Error('Модель не вернула текст'),{status:502});
   this.last={status:'model_online',checkedAt:new Date().toISOString(),model};return {ok:true,model,status:this.last};
  }
+ async *stream(messages,{signal}={}){
+  const {model,enabled,apiKey}=this.read();
+  if(!enabled||!apiKey||!model)throw Object.assign(new Error('Cloud.ru не настроен'),{status:400});
+  if(!Array.isArray(messages)||messages.length<1||messages.length>30||!messages.every(m=>['user','assistant','system'].includes(m.role)&&typeof m.content==='string'&&m.content.length<=16000))throw Object.assign(new Error('Invalid messages'),{status:400});
+  let response;
+  try{response=await this.fetchImpl(BASE+'/chat/completions',{method:'POST',headers:{Authorization:'Bearer '+apiKey,'Content-Type':'application/json'},body:JSON.stringify({model,messages,max_tokens:1024,stream:true}),signal:signal??AbortSignal.timeout(90000)});}
+  catch(e){throw Object.assign(new Error('Нет соединения с Cloud.ru'),{status:503});}
+  if(!response.ok)throw Object.assign(new Error(classifyCloudError(response.status)),{status:response.status});
+  if(!response.body)throw Object.assign(new Error('Пустой поток Cloud.ru'),{status:502});
+  const decoder=new TextDecoder();let buffer='',finished=false;
+  for await(const chunk of response.body){
+   buffer+=decoder.decode(chunk,{stream:true});
+   if(buffer.length>1048576)throw Error('Cloud.ru stream overflow');
+   let boundary;
+   while((boundary=buffer.indexOf('\\n\\n'))>=0){
+    const frame=buffer.slice(0,boundary).replaceAll('\\r','');buffer=buffer.slice(boundary+2);
+    const data=frame.split('\\n').filter(line=>line.startsWith('data:')).map(line=>line.slice(5).trim()).join('');
+    if(!data)continue;
+    if(data==='[DONE]'){finished=true;break;}
+    let parsed;try{parsed=JSON.parse(data);}catch{throw Error('Invalid Cloud.ru stream frame');}
+    const delta=parsed.choices?.[0]?.delta?.content;
+    if(typeof delta==='string'&&delta)yield delta;
+   }
+   if(finished)break;
+  }
+  if(!finished)throw Error('Cloud.ru stream ended unexpectedly');
+ }
  async complete(messages){
   const {model}=this.read();if(!model)throw Object.assign(new Error('Модель не выбрана'),{status:400});
   if(!Array.isArray(messages)||messages.length<1||messages.length>30||!messages.every(m=>['user','assistant','system'].includes(m.role)&&typeof m.content==='string'&&m.content.length<=16000))throw Object.assign(new Error('Invalid messages'),{status:400});
