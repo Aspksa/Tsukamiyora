@@ -41,7 +41,12 @@ export class RagPipeline {
    selected=[...fused.values()].sort((a,b)=>b.hybridScore-a.hybridScore||b.relevance-a.relevance).slice(0,limit);
    modeUsed=mode==='semantic'?'semantic':'hybrid';
   }
-  selected=selected.filter(hit=>(!hit.source_id.startsWith('chat:')||allowed.has(hit.source_id))&&this.verifyCitation(hit.citation));
+  // Feedback applies only to the same query; cap its influence to avoid
+  // overwhelming relevance or allowing feedback to bypass source ACLs.
+  const feedback=this.intelligence.feedbackScores(query);
+  selected=selected.filter(hit=>(!hit.source_id.startsWith('chat:')||allowed.has(hit.source_id))&&this.verifyCitation(hit.citation))
+   .map(hit=>({...hit,feedbackBoost:feedback.get(hit.source_id)??0}))
+   .sort((a,b)=>(b.hybridScore??b.relevance)+b.feedbackBoost-(a.hybridScore??a.relevance)-a.feedbackBoost);
   this.stats.verifiedCitations+=selected.length;
   const elapsedMs=Math.round((performance.now()-start)*100)/100;
   this.stats.queries++;this.stats.hits+=selected.length;if(!selected.length)this.stats.empty++;this.stats.totalMs+=elapsedMs;
