@@ -169,7 +169,9 @@ app.get('/api/rag/agents/research',async(req,reply)=>{try{
  const query=req.query?.q??'',taskKey=req.query?.taskKey;
  if(typeof taskKey!=='string'||!taskKey.trim()||taskKey.length>200)throw Error('Invalid task key');
  const retrieval=ragPipeline.retrieve(query,{limit:Number(req.query?.limit??5),mode:'lexical'});
- return {...retrieval,approvedLessons:agentExperience.share({taskKey,limit:10}),remoteCalls:0};
+ const citedSources=new Set(retrieval.results.map(hit=>hit.citation?.sourceId).filter(Boolean));
+ const approvedLessons=agentExperience.share({taskKey,limit:50}).filter(lesson=>citedSources.has(lesson.source_id)).slice(0,10);
+ return {...retrieval,approvedLessons,remoteCalls:0};
 }catch(e){reply.code(400);return {error:e.message};}});
 app.get('/api/rag/guardian/status',async()=>guardianScheduler.status());
 app.get('/api/rag/guardian',async(req,reply)=>{try{return ragGuardian.inspect({limit:Number(req.query?.limit??50),staleDays:Number(req.query?.staleDays??90)});}catch(e){reply.code(400);return {error:e.message};}});
