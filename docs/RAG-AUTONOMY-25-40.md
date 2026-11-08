@@ -47,3 +47,7 @@ The evidence audit runs once after successful server startup and then every 30 m
 ## Agent observability milestone
 
 Agent activity is now recorded in the local SQLite `rag_agent_activity` table and exposed via `GET /api/rag/agents/coordinator/activity?limit=30`. The knowledge dashboard shows the most recent events. Events record role, action, outcome, count and elapsed milliseconds; no private document bodies or Cloud.ru keys are logged. The audit queue is bounded, and evidence rejection remains transactional. These are local operational measurements, not proof of autonomous agent reasoning or Cloud.ru cost savings.
+
+## Cloud.ru usage instrumentation
+
+`GET /api/cloud/usage` and `GET /api/metrics` expose in-memory counts for requests, successful responses, failed responses, and token usage explicitly reported by non-streaming chat completions. The dashboard displays these counters without API keys or chat content. Counters reset on restart; streaming token usage is not yet captured, and prices/cost savings are **not** inferred. This is instrumentation, not a verified reduction in paid requests.
