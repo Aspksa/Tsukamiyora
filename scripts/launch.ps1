@@ -98,9 +98,7 @@ try {
   Log "Tsukamiyora startup | root=$root | instance=$instanceId"
   $locked = $mutex.WaitOne(0)
   if (-not $locked) { Log 'Another launcher is already starting. Wait and retry.'; exit 0 }
-  $node = Find-Node
-  $version = (& $node -p 'process.versions.node').Trim()
-  if ($LASTEXITCODE -ne 0 -or [version]$version -lt [version]'22.13.0') { throw "Node.js 22.13+ required, found $version" }
+  Log 'Checking existing local website before installing runtimes'
   $port = 4177
   if ($env:TSUKAMIYORA_PORT) {
     $port = [int]$env:TSUKAMIYORA_PORT
@@ -112,8 +110,12 @@ try {
     OpenChat $port
     exit 0
   }
+  # Do not probe 100 unused ports: on slow Windows hosts those HTTP
+  # timeouts could look like a frozen black console window.
+  $used = @(Get-NetTCPConnection -State Listen -ErrorAction SilentlyContinue | Select-Object -ExpandProperty LocalPort)
   if (-not $explicit) {
     foreach ($candidate in 4178..4277) {
+      if ($candidate -notin $used) { continue }
       if ((Healthy $candidate) -and (ChatReady $candidate)) {
         Log "Existing Tsukamiyora instance and chat found on port $candidate"
         OpenChat $candidate
@@ -121,13 +123,16 @@ try {
       }
     }
   }
-  $used = @(Get-NetTCPConnection -State Listen -ErrorAction SilentlyContinue | Select-Object -ExpandProperty LocalPort)
   if ($port -in $used) {
     if ($explicit) { throw "Requested port $port is occupied" }
     $free = @(4178..4277 | Where-Object { $_ -notin $used } | Select-Object -First 1)[0]
     if (-not $free) { throw 'No free port in range 4177-4277' }
     $port = $free
   }
+  Log "No running copy found; preparing runtime for port $port"
+  $node = Find-Node
+  $version = (& $node -p 'process.versions.node').Trim()
+  if ($LASTEXITCODE -ne 0 -or [version]$version -lt [version]'22.13.0') { throw "Node.js 22.13+ required, found $version" }
   # Invoke npm through the Node executable instead of npm.cmd: cmd.exe can
   # corrupt arguments containing %, !, ^, &, and parentheses on portable drives.
   $npmCli = Join-Path (Split-Path -Parent $node) 'node_modules\npm\bin\npm-cli.js'

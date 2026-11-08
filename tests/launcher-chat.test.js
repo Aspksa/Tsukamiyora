@@ -18,6 +18,11 @@ test('BAT launcher checks chat readiness before opening the browser',()=>{
  assert.match(launcher,/Open this address in your browser:/);
  assert.match(launcher,/WriteAllText/);
  assert.match(launcher,/Tsukamiyora\.url/);
+ // Opening an already running instance must not depend on downloading Node.js.
+ assert.ok(launcher.indexOf('Checking existing local website') < launcher.indexOf('$node = Find-Node'));
+ assert.ok(launcher.indexOf('OpenChat $candidate') < launcher.indexOf('$node = Find-Node'));
+ assert.match(launcher,/if \(\$candidate -notin \$used\) \{ continue \}/);
+ assert.match(bat,/checking local website/);
  assert.match(launcher,/-ArgumentList 'src\/supervisor\.js' -WorkingDirectory \$root/);
  assert.doesNotMatch(launcher,/-ArgumentList @\(\$server\)/);
  assert.match(bat,/if not defined CI pause/);
