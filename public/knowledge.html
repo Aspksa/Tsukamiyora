@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="ru"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Tsukamiyora — Центр знаний</title>
+<style>
+:root{color-scheme:dark;font-family:system-ui,Arial,sans-serif;background:#0b0b0d;color:#f3efe4}
+body{max-width:980px;margin:auto;padding:24px}h1{color:#dfc58b}h2{font-size:1.1rem}
+section{background:#17171b;border:1px solid #51452c;border-radius:14px;padding:18px;margin:16px 0}
+button{background:#bd9a53;color:#111;border:0;border-radius:8px;padding:10px 16px;font-weight:700;cursor:pointer}
+small{color:#bdb5a5}pre{white-space:pre-wrap;overflow-wrap:anywhere;font-size:13px}
+a{color:#dfc58b} .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:14px}
+</style></head><body>
+<h1>Центр знаний</h1><p>Локальная диагностика RAG, фоновой индексации и памяти агентов.</p>
+<p><a href="/chat">Чат</a> · <a href="/settings">Настройки</a></p>
+<button id="refresh">Обновить данные</button><small id="updated" role="status"></small>
+<div class="grid">
+<section><h2>Фоновая индексация</h2><pre id="indexer">Загрузка…</pre></section>
+<section><h2>Хранитель знаний</h2><pre id="guardian">Загрузка…</pre></section>
+</div>
+<section><h2>История проверок</h2><pre id="history">Загрузка…</pre></section>
+<script>
+async function refresh(){
+ const endpoints=[['indexer','/api/rag/indexer/status'],['guardian','/api/rag/guardian/status'],['history','/api/rag/guardian/history?limit=15']];
+ await Promise.all(endpoints.map(async([id,url])=>{
+  const target=document.getElementById(id);
+  try{const response=await fetch(url,{cache:'no-store'});if(!response.ok)throw Error('HTTP '+response.status);
+   target.textContent=JSON.stringify(await response.json(),null,2);
+  }catch(error){target.textContent='Ошибка: '+error.message;}
+ }));
+ document.getElementById('updated').textContent=' Последнее обновление: '+new Date().toLocaleTimeString('ru-RU');
+}
+document.getElementById('refresh').addEventListener('click',refresh);
+refresh();
+</script></body></html>
