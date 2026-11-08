@@ -12,7 +12,8 @@
     "diagnose": "node scripts/diagnose.js",
     "backup": "node src/backup.js --run-backup",
     "verify": "node scripts/verify.js",
-    "test:core": "node --test tests/*.test.js"
+    "test:core": "node --test tests/*.test.js",
+    "rag:index": "node scripts/rag-index.js"
   },
   "dependencies": {
     "fastify": "^5.0.0",
