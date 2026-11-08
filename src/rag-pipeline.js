@@ -11,7 +11,7 @@ export class RagPipeline {
  retrieve(query,{limit=5,mode='adaptive'}={}){
   if(!Number.isInteger(limit)||limit<1||limit>30||!['adaptive','lexical','graph','semantic','hybrid'].includes(mode))throw Error('Invalid retrieval options');
   const start=performance.now(),rewritten=this.rewrite(query);
-  const lexical=this.index.search(rewritten,{limit:Math.min(30,limit*3)});
+  const lexical=mode==='semantic'?[]:this.index.search(rewritten,{limit:Math.min(30,limit*3)});
   const ranked=lexical.map((hit,i)=>{
    const terms=unique(words(query)),body=new Set(words(hit.body));
    const coverage=terms.length?terms.filter(t=>body.has(t)).length/terms.length:0;
