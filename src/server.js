@@ -13,7 +13,7 @@ mkdirSync('logs',{recursive:true});
 const log=(message)=>appendFileSync('logs/core.jsonl',JSON.stringify({at:new Date().toISOString(),message})+'\n');
 const autoIndex=createAutoIndexer(db,{log});
 app.get('/health',async()=>{db.prepare('SELECT 1').get();return {status:'ok',service:'tsukamiyora-core',version:'0.3.0',database:'ok'};});
-app.get('/',async()=>({name:'Tsukamiyora Core',status:'running',endpoints:['/health','/api/events','/api/metrics','/api/modules','/api/tasks','/api/rag/search','/api/rag/documents','/api/rag/context','/ws']}));
+app.get('/',async()=>({name:'Tsukamiyora Core',status:'running',endpoints:['/health','/api/events','/api/metrics','/api/modules','/api/tasks','/api/rag/search','/api/rag/documents','/api/rag/context','/api/rag/status','/ws']}));
 app.get('/api/metrics',async()=>metrics());
 app.get('/api/modules',async()=>({modules:modules()}));
 app.post('/api/tasks',async(req,reply)=>{
@@ -26,6 +26,12 @@ app.post('/api/tasks',async(req,reply)=>{
 });
 app.get('/api/tasks/:id',async(req,reply)=>{const task=tasks.get(req.params.id);if(!task){reply.code(404);return {error:'not_found'};}return task;});
 
+app.get('/api/rag/status',async()=>({
+ sources:db.prepare('SELECT COUNT(*) AS count FROM rag_sources').get().count,
+ chunks:db.prepare('SELECT COUNT(*) AS count FROM rag_chunks').get().count,
+ relations:db.prepare('SELECT COUNT(*) AS count FROM rag_edges').get().count,
+ facts:db.prepare('SELECT COUNT(*) AS count FROM rag_facts').get().count
+}));
 app.post('/api/rag/documents',async(req,reply)=>{
  try{const result=rag.ingest(req.body??{});reply.code(result.changed?201:200);return result;}
  catch(error){reply.code(400);return {error:String(error.message)};}
