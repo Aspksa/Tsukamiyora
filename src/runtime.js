@@ -19,10 +19,11 @@ export class TTLCache {
 }
 export const cache=new TTLCache();
 export class TaskQueue {
- constructor({concurrency=2,capacity=100}={}){this.concurrency=concurrency;this.capacity=capacity;this.waiting=[];this.active=0;this.closed=false;this.tasks=new Map();}
+ constructor({concurrency=2,capacity=100,historyLimit=500}={}){if(!Number.isInteger(concurrency)||concurrency<1||concurrency>32||!Number.isInteger(capacity)||capacity<1||!Number.isInteger(historyLimit)||historyLimit<1)throw Error('Invalid queue configuration');this.concurrency=concurrency;this.capacity=capacity;this.historyLimit=historyLimit;this.waiting=[];this.active=0;this.closed=false;this.tasks=new Map();}
  submit(kind,payload,{priority=0}={}) {
-  if(this.closed||this.waiting.length>=this.capacity)throw Error('Task queue unavailable');
+  if(this.closed||this.waiting.length+this.active>=this.capacity)throw Error('Task queue unavailable');
   if(kind!=='hash'&&kind!=='sum')throw Error('Unsupported task type');
+  if(!Number.isInteger(priority)||priority<0||priority>10)throw Error('Invalid priority');
   const id=randomUUID();const item={id,kind,payload,priority,status:'queued',createdAt:Date.now()};
   this.tasks.set(id,item);this.waiting.push(item);this.waiting.sort((a,b)=>b.priority-a.priority);this.#drain();return id;
  }
@@ -35,7 +36,9 @@ export class TaskQueue {
     if(finished)return;finished=true;this.active--;
     task.status=error?'failed':'done';task.completedAt=Date.now();
     if(error)task.error=String(error);else task.result=result;
+    task.payload=undefined;
     events.emit('task:finished',{id:task.id,status:task.status});
+    this.#prune();
     worker.terminate().catch(()=>{});this.#drain();
    };
    worker.once('message',value=>finish(null,value));
@@ -43,6 +46,7 @@ export class TaskQueue {
    worker.once('exit',code=>{if(!finished)finish(Error('Worker exited '+code));});
   }
  }
+ #prune(){if(this.tasks.size<=this.historyLimit)return;for(const [id,item] of this.tasks){if(this.tasks.size<=this.historyLimit)break;if(item.status==='done'||item.status==='failed')this.tasks.delete(id);}}
  get(id){return this.tasks.get(id);}
  close(){this.closed=true;}
 }
