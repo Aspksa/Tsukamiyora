@@ -11,7 +11,7 @@ if (-not (Get-Command git.exe -ErrorAction SilentlyContinue)) { throw 'Git requi
 if ((git status --porcelain)) { throw 'Uncommitted changes: refusing update' }
 if ((git branch --show-current).Trim() -ne 'main') { throw 'Switch to main' }
 $before = (git rev-parse HEAD).Trim()
-Git @('fetch','origin','main') | Out-Null
+Git -argsList @('fetch','origin','main') | Out-Null
 $target = (git rev-parse origin/main).Trim()
 & git merge-base --is-ancestor HEAD origin/main
 if ($LASTEXITCODE -ne 0) { throw 'Remote main diverged: update refused' }
@@ -34,7 +34,7 @@ $stage = Join-Path $root '.runtime\update-check'
 if (Test-Path -LiteralPath $stage) { throw 'Update check directory exists; inspect and remove it manually' }
 New-Item -ItemType Directory -Force -Path (Split-Path -Parent $stage) | Out-Null
 try {
-  Git @('worktree','add','--detach',$stage,$target) | Out-Null
+  Git -argsList @('worktree','add','--detach',$stage,$target) | Out-Null
   Push-Location -LiteralPath $stage
   try {
     & $node --check src/server.js
@@ -44,7 +44,7 @@ try {
     & $node --test tests/runtime.test.js tests/restore.test.js
     if ($LASTEXITCODE -ne 0) { throw 'New revision tests failed' }
   } finally { Pop-Location }
-  Git @('merge','--ff-only','origin/main') | Out-Null
+  Git -argsList @('merge','--ff-only','origin/main') | Out-Null
   Write-Host "Update installed: $target"
   Write-Host "Previous revision: $before"
 } finally {
