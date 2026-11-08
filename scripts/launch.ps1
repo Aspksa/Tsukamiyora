@@ -1,6 +1,12 @@
 $ErrorActionPreference = 'Stop'
 $root = [IO.Path]::GetFullPath($env:TSUKA_ROOT)
 Set-Location -LiteralPath $root
+# Stable, non-secret instance identifier avoids opening an unrelated old copy.
+$rootIdText = $root.TrimEnd([char[]]@('\\','/')).ToLowerInvariant()
+$hashProvider = [Security.Cryptography.SHA256]::Create()
+try { $instanceId = [BitConverter]::ToString($hashProvider.ComputeHash([Text.Encoding]::UTF8.GetBytes($rootIdText))).Replace('-','').ToLowerInvariant().Substring(0,16) }
+finally { $hashProvider.Dispose() }
+$env:TSUKAMIYORA_INSTANCE_ID = $instanceId
 $logs = Join-Path $root 'logs'
 New-Item -ItemType Directory -Force -Path $logs | Out-Null
 $log = Join-Path $logs 'launcher.log'
@@ -12,8 +18,34 @@ function Log([string]$message) {
 function Healthy([int]$port) {
   try {
     $r = Invoke-RestMethod -Uri "http://127.0.0.1:$port/health" -TimeoutSec 2
-    return ($r.service -eq 'tsukamiyora-core' -and $r.status -eq 'ok')
+    return ($r.service -eq 'tsukamiyora-core' -and $r.status -eq 'ok' -and $r.instanceId -eq $instanceId)
   } catch { return $false }
+}
+function ChatReady([int]$port) {
+  try {
+    $r = Invoke-WebRequest -Uri "http://127.0.0.1:$port/chat" -UseBasicParsing -TimeoutSec 4
+    return ($r.StatusCode -eq 200 -and $r.Content -match 'id="form"' -and $r.Content -match 'id="message"')
+  } catch { return $false }
+}
+function OpenChat([int]$port) {
+  $url = "http://127.0.0.1:$port/chat"
+  Log "Open this address in your browser: $url"
+  try {
+    # A desktop shortcut remains usable if the browser association is broken.
+    Set-Content -LiteralPath (Join-Path $root 'Открыть Tsukamiyora.url') -Value @('[InternetShortcut]',"URL=$url") -Encoding ASCII -ErrorAction Stop
+  } catch { Log "Could not create browser shortcut: $($_.Exception.Message)" }
+  if ($env:CI) { Log 'CI mode: browser launch skipped'; return }
+  try {
+    $startInfo = New-Object System.Diagnostics.ProcessStartInfo
+    $startInfo.FileName = $url
+    $startInfo.UseShellExecute = $true
+    [System.Diagnostics.Process]::Start($startInfo) | Out-Null
+    Log "Browser open requested: $url"
+  } catch {
+    Log "Default browser failed: $($_.Exception.Message); trying Explorer"
+    try { Start-Process -FilePath 'explorer.exe' -ArgumentList $url -ErrorAction Stop; Log 'Explorer fallback requested' }
+    catch { Log "Automatic browser opening failed: $($_.Exception.Message). Open $url manually" }
+  }
 }
 function Find-Node {
   $portable = Join-Path $root '.runtime\node\node.exe'
@@ -62,6 +94,7 @@ function Find-Node {
 $mutex = New-Object System.Threading.Mutex($false, 'Local\TsukamiyoraCoreLauncher')
 $locked = $false
 try {
+  Log "Tsukamiyora startup | root=$root | instance=$instanceId"
   $locked = $mutex.WaitOne(0)
   if (-not $locked) { Log 'Another launcher is already starting. Wait and retry.'; exit 0 }
   $node = Find-Node
@@ -73,16 +106,16 @@ try {
     if ($port -lt 1 -or $port -gt 65535) { throw 'Invalid TSUKAMIYORA_PORT' }
   }
   $explicit = [bool]$env:TSUKAMIYORA_PORT
-  if (Healthy $port) {
-    Log "Existing server healthy on port $port"
-    if (-not $env:CI) { Start-Process "http://127.0.0.1:$port/chat" }
+  if ((Healthy $port) -and (ChatReady $port)) {
+    Log "Existing server and chat healthy on port $port"
+    OpenChat $port
     exit 0
   }
   if (-not $explicit) {
     foreach ($candidate in 4178..4277) {
-      if (Healthy $candidate) {
-        Log "Existing Tsukamiyora instance found on port $candidate"
-        Start-Process "http://127.0.0.1:$candidate/chat"
+      if ((Healthy $candidate) -and (ChatReady $candidate)) {
+        Log "Existing Tsukamiyora instance and chat found on port $candidate"
+        OpenChat $candidate
         exit 0
       }
     }
@@ -125,7 +158,7 @@ try {
   $ready = $false
   for ($i=0; $i -lt 30; $i++) {
     Start-Sleep -Milliseconds 500
-    if (Healthy $port) { $ready = $true; break }
+    if ((Healthy $port) -and (ChatReady $port)) { $ready = $true; break }
     if ($proc.HasExited) { break }
   }
   if (-not $ready) {
@@ -133,10 +166,10 @@ try {
     if (Test-Path -LiteralPath $stderr) {
       Get-Content -LiteralPath $stderr -Tail 25 -ErrorAction SilentlyContinue | ForEach-Object { Log "Server: $_" }
     }
-    throw 'Server failed health check; inspect logs/server-stderr.log'
+    throw 'Server or chat page failed readiness check; inspect logs/server-stderr.log'
   }
-  Log 'Health check passed'
-  if (-not $env:CI) { Start-Process "http://127.0.0.1:$port/chat" }
+  Log 'Health and chat page checks passed'
+  OpenChat $port
   exit 0
 } catch {
   Log "ERROR: $($_.Exception.Message)"
