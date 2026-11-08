@@ -4,6 +4,7 @@ import { openStorage } from './storage.js';
 import { KnowledgeIndex } from './rag.js';
 import { RagPipeline } from './rag-pipeline.js';
 import { ConversationMemory } from './rag-memory.js';
+import { ChatContext } from './chat-context.js';
 import { createAutoIndexer } from './rag-auto.js';
 import { tasks, metrics, modules, events } from './runtime.js';
 import { mkdirSync, appendFileSync } from 'node:fs';
@@ -13,6 +14,7 @@ const db=openStorage();
 const rag=new KnowledgeIndex(db);
 const ragPipeline=new RagPipeline(rag);
 const memory=new ConversationMemory(db);
+const chatContext=new ChatContext(db);
 mkdirSync('logs',{recursive:true});
 const log=(message)=>appendFileSync('logs/core.jsonl',JSON.stringify({at:new Date().toISOString(),message})+'\n');
 const autoIndex=createAutoIndexer(db,{log});
@@ -30,6 +32,10 @@ app.post('/api/tasks',async(req,reply)=>{
 });
 app.get('/api/tasks/:id',async(req,reply)=>{const task=tasks.get(req.params.id);if(!task){reply.code(404);return {error:'not_found'};}return task;});
 
+app.post('/api/chat/context',async(req,reply)=>{
+ try{return chatContext.prepare(req.body??{});}
+ catch(error){reply.code(400);return {error:String(error.message)};}
+});
 app.post('/api/memory/messages',async(req,reply)=>{
  try{const result=memory.append(req.body??{});reply.code(result.created?201:200);return result;}
  catch(error){reply.code(400);return {error:String(error.message)};}
