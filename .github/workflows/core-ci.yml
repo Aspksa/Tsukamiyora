@@ -14,9 +14,12 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
-      - run: npm install --no-audit --no-fund
+      - run: npm install --ignore-scripts --no-audit --no-fund
       - run: node --test
       - run: node scripts/diagnose.js
+      - run: node src/backup.js --run-backup
+      - name: Check SQLite backup integrity
+        run: node -e "const fs=require('fs');const {DatabaseSync}=require('node:sqlite');const files=fs.readdirSync('data/backups').filter(f=>f.endsWith('.sqlite'));if(!files.length)process.exit(1);const db=new DatabaseSync('data/backups/'+files[0]);if(db.prepare('PRAGMA integrity_check').get().integrity_check!=='ok')process.exit(2);db.close()"
       - name: API integration smoke test
         shell: pwsh
         run: |
