@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import {DatabaseSync} from 'node:sqlite';
 import {KnowledgeIndex} from '../src/rag.js';
 import {HybridNeuralRag} from '../src/rag-hybrid-neural.js';
+import {RagPermissions} from '../src/rag-permissions.js';
 
 test('hybrid neural search fuses both retrievers and never returns private chats',async()=>{
  const db=new DatabaseSync(':memory:');
@@ -11,6 +12,8 @@ test('hybrid neural search fuses both retrievers and never returns private chats
   index.ingest({id:'file:one',title:'One',text:'масло двигатель фильтр'});
   index.ingest({id:'file:two',title:'Two',text:'тормозные колодки'});
   index.ingest({id:'chat:secret',title:'Secret',text:'масло двигатель личные данные'});
+  new RagPermissions(db).set({sourceId:'file:one',allowed:true});
+  new RagPermissions(db).set({sourceId:'file:two',allowed:true});
   let calls=0;
   const cloud={async request(path,{body}){
    assert.equal(path,'/embeddings');calls++;
