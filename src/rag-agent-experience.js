@@ -11,13 +11,18 @@ export class RagAgentExperience {
    CHECK(status IN ('pending','approved','rejected'))
   );
   CREATE INDEX IF NOT EXISTS rag_agent_experience_lookup ON rag_agent_experience(task_key,status,id);`);
+  // Additive migration: previously approved lessons without a source snapshot
+  // remain withheld until re-proposed and reviewed against current evidence.
+  if(!db.prepare("PRAGMA table_info(rag_agent_experience)").all().some(c=>c.name==='source_body_hash'))
+   db.exec('ALTER TABLE rag_agent_experience ADD COLUMN source_body_hash TEXT');
  }
  propose({agentId,taskKey,lesson,sourceId}={}){
   if(![agentId,taskKey,lesson,sourceId].every(x=>typeof x==='string'&&x.trim())||
    agentId.length>100||taskKey.length>200||lesson.length>2000||
    !sourceId.startsWith('file:')||sourceId.length>200)throw Error('Invalid agent experience');
-  if(!this.db.prepare('SELECT 1 FROM rag_sources WHERE id=?').get(sourceId))throw Error('Evidence source not found');
-  const result=this.db.prepare('INSERT INTO rag_agent_experience(agent_id,task_key,lesson,source_id) VALUES(?,?,?,?)').run(agentId,taskKey,lesson,sourceId);
+  const source=this.db.prepare('SELECT body_hash FROM rag_sources WHERE id=?').get(sourceId);
+  if(!source)throw Error('Evidence source not found');
+  const result=this.db.prepare('INSERT INTO rag_agent_experience(agent_id,task_key,lesson,source_id,source_body_hash) VALUES(?,?,?,?,?)').run(agentId,taskKey,lesson,sourceId,source.body_hash);
   return {id:Number(result.lastInsertRowid),status:'pending'};
  }
  review({id,approved}={}){
@@ -31,6 +36,7 @@ export class RagAgentExperience {
   return this.db.prepare(`SELECT e.id,e.agent_id,e.task_key,e.lesson,e.source_id,e.reviewed_at
    FROM rag_agent_experience e JOIN rag_sources s ON s.id=e.source_id
    WHERE e.task_key=? AND e.status='approved' AND substr(e.source_id,1,5)='file:'
+    AND e.source_body_hash=s.body_hash
    ORDER BY e.id DESC LIMIT ?`).all(taskKey,limit);
  }
 }
