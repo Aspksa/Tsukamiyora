@@ -32,13 +32,13 @@ export class RagIntelligence {
   for(const row of rows)insert.run(row.id,row.body_hash,JSON.stringify(this.embed(row.body)));
   this.stats.indexed+=rows.length;this.queryCache.clear();return {indexed:rows.length};
  }
- semantic(query,{limit=5,excludeChat=true}={}){
+ semantic(query,{limit=5,excludeChat=true,allowedChatSourceIds=null}={}){
   if(typeof query!=='string'||!query.trim()||query.length>1000||!Number.isInteger(limit)||limit<1||limit>30)throw Error('Invalid semantic search');
   this.stats.searches++;
   const key=hash(query);let vec=this.queryCache.get(key);
   if(vec)this.stats.cacheHits++;else{vec=this.embed(query);if(this.queryCache.size>=100)this.queryCache.clear();this.queryCache.set(key,vec);}
   const rows=this.db.prepare('SELECT c.id,c.source_id,c.body,s.title,v.vector FROM rag_vectors v JOIN rag_chunks c ON c.id=v.chunk_id JOIN rag_sources s ON s.id=c.source_id').all();
-  return rows.filter(r=>!excludeChat||!r.source_id.startsWith('chat:')).map(r=>({...r,similarity:cosine(vec,JSON.parse(r.vector))})).filter(r=>r.similarity>0).sort((a,b)=>b.similarity-a.similarity).slice(0,limit).map(({vector,...r})=>({...r,citation:{sourceId:r.source_id,title:r.title,chunkId:r.id}}));
+  return rows.filter(r=>!r.source_id.startsWith('chat:')||(!excludeChat&&allowedChatSourceIds instanceof Set&&allowedChatSourceIds.has(r.source_id))).map(r=>({...r,similarity:cosine(vec,JSON.parse(r.vector))})).filter(r=>r.similarity>0).sort((a,b)=>b.similarity-a.similarity).slice(0,limit).map(({vector,...r})=>({...r,citation:{sourceId:r.source_id,title:r.title,chunkId:r.id}}));
  }
  graph(subject,{limit=30}={}){
   if(typeof subject!=='string'||!subject.trim()||subject.length>200||!Number.isInteger(limit)||limit<1||limit>100)throw Error('Invalid graph query');
