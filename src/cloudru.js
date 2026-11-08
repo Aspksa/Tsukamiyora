@@ -32,7 +32,7 @@ export class CloudRu {
   try{response=await this.fetchImpl(BASE+path,{method,headers:{Authorization:'Bearer '+settings.apiKey,...(body?{'Content-Type':'application/json'}:{})},body:body?JSON.stringify(body):undefined,signal:AbortSignal.timeout(timeout)});}
   catch(e){this.usage.failed++;throw Object.assign(new Error(e.name==='TimeoutError'?'Превышено время ожидания Cloud.ru':'Нет соединения с Cloud.ru'),{status:503});}
   if(!response.ok){this.usage.failed++;throw Object.assign(new Error(classifyCloudError(response.status)),{status:response.status});}
-  try{const result=await response.json();this.usage.succeeded++;this.recordUsage(result);return result;}
+  try{const result=await response.json();this.usage.succeeded++;if(path.includes('/chat/completions'))this.recordUsage(result);return result;}
   catch(e){this.usage.failed++;throw e;}
  }
  async models(){
