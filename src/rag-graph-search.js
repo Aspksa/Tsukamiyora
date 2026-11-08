@@ -13,9 +13,10 @@ export class GraphAwareRag {
   const citations=[];
   if(sources.length){
    const stmt=this.index.db.prepare(`SELECT c.id,c.source_id,c.body,s.title FROM rag_chunks c JOIN rag_sources s ON s.id=c.source_id
-    WHERE c.source_id=? ORDER BY c.position LIMIT 1`);
+    WHERE c.source_id=? ORDER BY c.position LIMIT 500`);
    for(const sourceId of sources){
-    const hit=stmt.get(sourceId);
+    const triples=graph.edges.filter(edge=>edge.source_id===sourceId);
+    const hit=stmt.all(sourceId).find(chunk=>triples.some(edge=>chunk.body.split(/\r?\n/).some(line=>line.trim()===`${edge.subject} -> ${edge.relation} -> ${edge.object}`)));
     if(hit)citations.push({...hit,citation:{sourceId:hit.source_id,chunkId:hit.id,title:hit.title},graphEvidence:true});
    }
   }
