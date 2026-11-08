@@ -17,6 +17,7 @@ a{color:#dfc58b} .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax
 <section><h2>Хранитель знаний</h2><pre id="guardian">Загрузка…</pre></section>
 </div>
 <section><h2>История проверок</h2><pre id="history">Загрузка…</pre></section>
+<section><h2>Опыт агентов — ожидает проверки</h2><div id="pending" aria-live="polite">Загрузка…</div></section>
 <script>
 async function refresh(){
  const endpoints=[['indexer','/api/rag/indexer/status'],['guardian','/api/rag/guardian/status'],['history','/api/rag/guardian/history?limit=15']];
@@ -26,7 +27,38 @@ async function refresh(){
    target.textContent=JSON.stringify(await response.json(),null,2);
   }catch(error){target.textContent='Ошибка: '+error.message;}
  }));
+ await loadPending();
  document.getElementById('updated').textContent=' Последнее обновление: '+new Date().toLocaleTimeString('ru-RU');
+}
+async function loadPending(){
+ const target=document.getElementById('pending');target.replaceChildren();
+ try{
+  const response=await fetch('/api/rag/agents/experience/pending?limit=30',{cache:'no-store'});
+  if(!response.ok)throw Error('HTTP '+response.status);
+  const data=await response.json();
+  if(!data.items.length){target.textContent='Нет записей для проверки';return;}
+  for(const item of data.items){
+   const box=document.createElement('div');box.style.padding='12px';box.style.borderBottom='1px solid #51452c';
+   const label=document.createElement('p');
+   label.textContent=item.agent_id+' · '+item.task_key+' · '+item.lesson+' · '+item.source_id;
+   box.append(label);
+   if(!item.evidenceCurrent){const warning=document.createElement('small');warning.textContent='Источник изменён или удалён — подтверждение недоступно';box.append(warning);}
+   for(const [caption,approved] of [['Подтвердить',true],['Отклонить',false]]){
+    const button=document.createElement('button');button.textContent=caption;button.style.marginRight='8px';
+    button.disabled=!item.evidenceCurrent;
+    button.addEventListener('click',async()=>{
+     button.disabled=true;
+     try{
+      const response=await fetch('/api/rag/agents/experience/review',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({id:item.id,approved})});
+      const result=await response.json();
+      if(!response.ok||!result.updated)throw Error(result.error||'Запись не обновлена');
+      await loadPending();
+     }catch(error){alert('Ошибка проверки: '+error.message);button.disabled=false;}
+    });box.append(button);
+   }
+   target.append(box);
+  }
+ }catch(error){target.textContent='Ошибка: '+error.message;}
 }
 document.getElementById('refresh').addEventListener('click',refresh);
 refresh();
