@@ -33,3 +33,24 @@ test('guardian scheduler rejects unsafe intervals',()=>{
  try{assert.throws(()=>createGuardianScheduler(db,{intervalMinutes:0}),/Invalid guardian scheduler options/);}
  finally{db.close();}
 });
+
+test('guardian discovers consolidation candidates without changing source evidence',()=>{
+ const db=new DatabaseSync(':memory:');
+ try{
+  const index=new KnowledgeIndex(db),lifecycle=new KnowledgeLifecycle(db);
+  new RagTopicGraph(db);
+  for(const id of ['file:a','file:b']){
+   index.ingest({id,title:id,text:'Масло: 5W30'});
+   lifecycle.extract({sourceId:id});
+  }
+  const before=db.prepare('SELECT COUNT(*) n FROM rag_evidence').get().n;
+  const scheduler=createGuardianScheduler(db);
+  const result=scheduler.run();
+  assert.equal(result.consolidationCandidates,1);
+  assert.equal(result.requiresReview,true);
+  assert.equal(result.requiresApproval,true);
+  assert.equal(result.remoteCalls,0);
+  assert.equal(db.prepare('SELECT COUNT(*) n FROM rag_evidence').get().n,before);
+  scheduler.stop();
+ }finally{db.close();}
+});
