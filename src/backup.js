@@ -1,8 +1,9 @@
 import { backup, DatabaseSync } from 'node:sqlite';
 import { existsSync, mkdirSync, readdirSync, unlinkSync, renameSync, lstatSync } from 'node:fs';
 import { join } from 'node:path';
-import { randomUUID,createHash } from 'node:crypto';
-import {createReadStream,writeFileSync} from 'node:fs';
+import { randomUUID } from 'node:crypto';
+import {writeFileSync} from 'node:fs';
+import {sha256File} from './backup-checksum.js';
 export async function backupDatabase({root=process.cwd(),retention=10}={}){
  if(typeof root!=='string'||!root.trim()||!Number.isInteger(retention)||retention<1||retention>100)throw Error('Invalid backup options');
  const source=join(root,'data','tsukamiyora.sqlite');
@@ -20,11 +21,7 @@ export async function backupDatabase({root=process.cwd(),retention=10}={}){
   finally { check.close(); }
   renameSync(tmp,target);
   // Hash the finished snapshot for tamper/corruption detection.
-  const digest=await new Promise((resolve,reject)=>{
-   const hash=createHash('sha256');const stream=createReadStream(target);
-   stream.on('data',chunk=>hash.update(chunk));stream.once('error',reject);
-   stream.once('end',()=>resolve(hash.digest('hex')));
-  });
+  const digest=sha256File(target);
   writeFileSync(target+'.sha256',digest+'\\n',{flag:'wx'});
  } catch(e) { if(existsSync(tmp))unlinkSync(tmp); throw e; }
  const files=readdirSync(folder).filter(n=>/^tsukamiyora-\d{4}-\d{2}-\d{2}T\d{2}-\d{2}-\d{2}-\d{3}Z(?:-[0-9a-f]{8})?\.sqlite$/.test(n)).sort().reverse();
