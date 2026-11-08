@@ -6,7 +6,7 @@ import {createHash} from 'node:crypto';
 const CASES=Object.freeze([
  {role:'security_engineer',skill:'secret_redaction',taskKey:'practice:secrets:v1',run:()=>{
   const secret='cloud-key-123456';const message='Authorization: Bearer '+secret;
-  const redacted=message.replace(/Bearer\\s+[^\\s]+/gi,'Bearer [REDACTED]');
+  const redacted=message.replace(/Bearer\s+[^\s]+/gi,'Bearer [REDACTED]');
   return {passed:!redacted.includes(secret),details:{redacted}};
  }},
  {role:'index_engineer',skill:'content_hashing',taskKey:'practice:hash:v1',run:()=>{
