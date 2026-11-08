@@ -34,14 +34,11 @@ export class RagPipeline {
    if(mode==='adaptive')this.stats.semanticFallbacks++;
    this.intelligence.sync({limit:500});
    const semantic=this.intelligence.semantic(query,{limit:Math.min(30,limit*3),excludeChat:false,allowedChatSourceIds:allowed});
-   const combined=new Map();
-   if(mode!=='semantic')for(const hit of ranked)combined.set(hit.id,{...hit,hybridScore:hit.relevance*0.65+0.35/(hit.rank+1)});
-   for(const hit of semantic){
-    const old=combined.get(hit.id);
-    const relevance=Math.max(old?.relevance??0,hit.similarity);
-    combined.set(hit.id,{...hit,...old,relevance,hybridScore:(old?.hybridScore??0)+hit.similarity*0.55});
-   }
-   selected=[...combined.values()].sort((a,b)=>b.hybridScore-a.hybridScore).slice(0,limit);
+   // Reciprocal-rank fusion: lexical and vector scores are not directly comparable.
+   const fused=new Map();
+   if(mode!=='semantic')ranked.forEach((hit,i)=>fused.set(hit.id,{...hit,hybridScore:1/(60+i+1)}));
+   semantic.forEach((hit,i)=>{const previous=fused.get(hit.id);fused.set(hit.id,{...hit,...previous,relevance:Math.max(previous?.relevance??0,hit.similarity),hybridScore:(previous?.hybridScore??0)+1/(60+i+1)});});
+   selected=[...fused.values()].sort((a,b)=>b.hybridScore-a.hybridScore||b.relevance-a.relevance).slice(0,limit);
    modeUsed=mode==='semantic'?'semantic':'hybrid';
   }
   selected=selected.filter(hit=>(!hit.source_id.startsWith('chat:')||allowed.has(hit.source_id))&&this.verifyCitation(hit.citation));
