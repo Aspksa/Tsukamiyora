@@ -22,7 +22,7 @@ export class RagPipeline {
   if(mode==='semantic'||mode==='hybrid'||(mode==='adaptive'&&(!selected.length||selected[0].relevance<0.25))){
    if(mode==='adaptive')this.stats.semanticFallbacks++;
    this.intelligence.sync({limit:500});
-   const semantic=this.intelligence.semantic(query,{limit:Math.min(30,limit*3)});
+   const semantic=this.intelligence.semantic(query,{limit:Math.min(30,limit*3),excludeChat:false,allowedChatSourceIds:allowed});
    const combined=new Map();
    if(mode!=='semantic')for(const hit of ranked)combined.set(hit.id,{...hit,hybridScore:hit.relevance*0.65+0.35/(hit.rank+1)});
    for(const hit of semantic){
