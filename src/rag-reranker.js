@@ -17,7 +17,7 @@ export function rerankRag(query,hits,{limit=5}={}){
   }
   const phraseScore=queryWords.length>1?adjacent/(queryWords.length-1):0;
   const original=Number.isFinite(hit.hybridScore)?hit.hybridScore:0;
-  const score=coverage*0.68+precision*0.17+phraseScore*0.1+Math.min(Math.max(original,0),0.05)+Math.max(-0.01,Math.min(0.01,hit.feedbackBoost||0));
+  const score=Math.max(0,Math.min(1,coverage*0.68+precision*0.17+phraseScore*0.1+Math.min(Math.max(original,0),0.05)+Math.max(-0.01,Math.min(0.01,Number.isFinite(hit.feedbackBoost)?hit.feedbackBoost:0))));
   return {...hit,rerankScore:score,explanation:{matchedTerms:matched,queryTerms:q.size,coverage,precision,phraseScore,sourceVerified:true},originalRank:i+1};
  }).sort((a,b)=>b.rerankScore-a.rerankScore||a.originalRank-b.originalRank).slice(0,limit);
 }
