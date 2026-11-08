@@ -75,14 +75,14 @@ try {
   $explicit = [bool]$env:TSUKAMIYORA_PORT
   if (Healthy $port) {
     Log "Existing server healthy on port $port"
-    if (-not $env:CI) { Start-Process "http://127.0.0.1:$port/" }
+    if (-not $env:CI) { Start-Process "http://127.0.0.1:$port/chat" }
     exit 0
   }
   if (-not $explicit) {
     foreach ($candidate in 4178..4277) {
       if (Healthy $candidate) {
         Log "Existing Tsukamiyora instance found on port $candidate"
-        Start-Process "http://127.0.0.1:$candidate/"
+        Start-Process "http://127.0.0.1:$candidate/chat"
         exit 0
       }
     }
@@ -124,7 +124,7 @@ try {
   }
   if (-not $ready) { throw 'Server failed health check; inspect logs/server-stderr.log' }
   Log 'Health check passed'
-  if (-not $env:CI) { Start-Process "http://127.0.0.1:$port/" }
+  if (-not $env:CI) { Start-Process "http://127.0.0.1:$port/chat" }
   exit 0
 } catch {
   Log "ERROR: $($_.Exception.Message)"
