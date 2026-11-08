@@ -29,7 +29,7 @@ export class RagPipeline {
    const coverage=terms.length?terms.filter(t=>body.has(t)).length/terms.length:0;
    return {...hit,relevance:Math.round(coverage*1000)/1000,rank:i+1};
   }).sort((a,b)=>b.relevance-a.relevance||a.rank-b.rank);
-  let selected=ranked.slice(0,limit),modeUsed='lexical';
+  let selected=ranked,modeUsed='lexical';
   if(mode==='semantic'||mode==='hybrid'||(mode==='adaptive'&&(!selected.length||selected[0].relevance<0.25))){
    if(mode==='adaptive')this.stats.semanticFallbacks++;
    this.intelligence.sync({limit:500});
@@ -38,15 +38,17 @@ export class RagPipeline {
    const fused=new Map();
    if(mode!=='semantic')ranked.forEach((hit,i)=>fused.set(hit.id,{...hit,hybridScore:1/(60+i+1)}));
    semantic.forEach((hit,i)=>{const previous=fused.get(hit.id);fused.set(hit.id,{...hit,...previous,relevance:Math.max(previous?.relevance??0,hit.similarity),hybridScore:(previous?.hybridScore??0)+1/(60+i+1)});});
-   selected=[...fused.values()].sort((a,b)=>b.hybridScore-a.hybridScore||b.relevance-a.relevance).slice(0,limit);
+   selected=[...fused.values()].sort((a,b)=>b.hybridScore-a.hybridScore||b.relevance-a.relevance);
    modeUsed=mode==='semantic'?'semantic':'hybrid';
   }
+  // Verify and rerank the full candidate pool before applying the result limit.
   // Feedback applies only to the same query; cap its influence to avoid
   // overwhelming relevance or allowing feedback to bypass source ACLs.
   const feedback=this.intelligence.feedbackScores(query);
   selected=selected.filter(hit=>(!hit.source_id.startsWith('chat:')||allowed.has(hit.source_id))&&this.verifyCitation(hit.citation))
    .map(hit=>({...hit,feedbackBoost:feedback.get(hit.source_id)??0}))
-   .sort((a,b)=>(b.hybridScore??b.relevance)+b.feedbackBoost-(a.hybridScore??a.relevance)-a.feedbackBoost);
+   .sort((a,b)=>(b.hybridScore??b.relevance)+b.feedbackBoost-(a.hybridScore??a.relevance)-a.feedbackBoost)
+   .slice(0,limit);
   this.stats.verifiedCitations+=selected.length;
   const elapsedMs=Math.round((performance.now()-start)*100)/100;
   this.stats.queries++;this.stats.hits+=selected.length;if(!selected.length)this.stats.empty++;this.stats.totalMs+=elapsedMs;
