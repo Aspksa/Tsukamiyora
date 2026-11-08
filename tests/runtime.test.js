@@ -4,7 +4,7 @@ import { TaskQueue, TTLCache, events, metrics, registerModule, modules } from '.
 test('worker executes queued computation',async()=>{
  const q=new TaskQueue({concurrency:1});
  const id=q.submit('sum',[2,3,5]);
- await new Promise((resolve,reject)=>{const timer=setTimeout(()=>reject(Error('worker timeout')),5000);const onFinish=e=>{if(e.id===id){clearTimeout(timer);events.off('task:finished',onFinish);resolve();}};events.on('task:finished',onFinish);});
+ await new Promise((resolve,reject)=>{const timer=setTimeout(()=>{events.off('task:finished',onFinish);reject(Error('worker timeout'));},5000);const onFinish=e=>{if(e.id===id){clearTimeout(timer);events.off('task:finished',onFinish);resolve();}};events.on('task:finished',onFinish);if(q.get(id).status==='done') {clearTimeout(timer);events.off('task:finished',onFinish);resolve();}});
  assert.equal(q.get(id).result,10);q.close();
 });
 test('cache expires and module registration validates names',()=>{
