@@ -24,3 +24,21 @@ test('capped scans never remove previously indexed documents',()=>{
   assert.equal(db.prepare('SELECT COUNT(*) n FROM rag_sources').get().n,1);
  }finally{db.close();rmSync(root,{recursive:true,force:true});}
 });
+
+test('failed source tracking transaction rolls back all cleanup',()=>{
+ const root=mkdtempSync(join(tmpdir(),'tsuka-rollback-'));
+ const db=new DatabaseSync(':memory:');
+ try{
+  writeFileSync(join(root,'a.md'),'First source');
+  writeFileSync(join(root,'b.md'),'Second source');
+  indexDirectory(db,root,{maxFiles:10});
+  unlinkSync(join(root,'a.md'));
+  db.exec(`CREATE TRIGGER fail_root_cleanup BEFORE DELETE ON rag_file_roots
+   BEGIN SELECT RAISE(ABORT,'simulated tracking failure'); END;`);
+  assert.throws(()=>indexDirectory(db,root,{maxFiles:10}),/simulated tracking failure/);
+  assert.equal(db.prepare('SELECT COUNT(*) n FROM rag_sources').get().n,2);
+  assert.equal(db.prepare('SELECT COUNT(*) n FROM rag_file_roots').get().n,2);
+  db.exec('DROP TRIGGER fail_root_cleanup');
+  assert.equal(indexDirectory(db,root,{maxFiles:10}).removed,1);
+ }finally{db.close();rmSync(root,{recursive:true,force:true});}
+});
