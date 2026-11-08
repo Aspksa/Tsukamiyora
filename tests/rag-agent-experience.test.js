@@ -86,3 +86,20 @@ test('stale agent proposals may be rejected but never approved',()=>{
   assert.deepEqual(experience.pending(),[]);
  }finally{db.close();}
 });
+
+test('agent review audit is transactional and records each decision once',()=>{
+ const db=new DatabaseSync(':memory:');
+ try{
+  const index=new KnowledgeIndex(db),experience=new RagAgentExperience(db);
+  index.ingest({id:'file:a',title:'A',text:'Original procedure'});
+  const first=experience.propose({agentId:'a',taskKey:'task',lesson:'Do A',sourceId:'file:a'});
+  const second=experience.propose({agentId:'a',taskKey:'task',lesson:'Do B',sourceId:'file:a'});
+  assert.deepEqual(experience.review({id:first.id,approved:true}),{updated:true});
+  assert.deepEqual(experience.review({id:first.id,approved:false}),{updated:false});
+  assert.deepEqual(experience.review({id:second.id,approved:false}),{updated:true});
+  const rows=experience.reviewHistory();
+  assert.deepEqual(rows.map(row=>row.decision),['rejected','approved']);
+  assert.deepEqual(rows.map(row=>row.experience_id),[second.id,first.id]);
+  assert.throws(()=>experience.reviewHistory({limit:101}),/Invalid review history limit/);
+ }finally{db.close();}
+});
