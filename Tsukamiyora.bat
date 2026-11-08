@@ -1,6 +1,9 @@
 @echo off
 setlocal DisableDelayedExpansion
 set "TSUKA_ROOT=%~dp0"
+echo Tsukamiyora - checking local website and starting services...
+echo If the browser does not open, see Tsukamiyora.url or logs\launcher.log
+echo.
 if not exist "%TSUKA_ROOT%scripts\launch.ps1" (
   echo [ERROR] Launcher script missing: scripts\launch.ps1
   if not defined CI pause
