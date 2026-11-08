@@ -47,7 +47,7 @@ test('scheduled indexer exposes queue status and avoids duplicate queued scans',
  }finally{db.close();rmSync(root,{recursive:true,force:true});}
 });
 
-test('indexer refuses symlinked folders outside project',()=>{
+test('indexer refuses symlinked folders outside project',{skip:process.platform==='win32'?'Windows symlink privileges vary':false},()=>{
  const root=mkdtempSync(join(tmpdir(),'tsuka-root-'));
  const outside=mkdtempSync(join(tmpdir(),'tsuka-outside-'));
  const db=new DatabaseSync(':memory:');
