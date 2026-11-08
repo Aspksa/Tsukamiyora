@@ -32,6 +32,7 @@ import { createGuardianScheduler } from './rag-guardian-scheduler.js';
 import { evaluateRag, compareRag } from './rag-evaluation.js';
 import { createAutoIndexer } from './rag-auto.js';
 import { RagAgentExperience } from './rag-agent-experience.js';
+import { createRagAgentCoordinator } from './rag-agent-coordinator.js';
 import { inspectBackups } from './backup-inspect.js';
 import { checkRestoreCandidate } from './backup-restore-check.js';
 import { tasks, metrics, modules, events } from './runtime.js';
@@ -59,6 +60,7 @@ const graphAwareRag=new GraphAwareRag(rag);
 const ragCorrections=new RagCorrections(db);
 const ragGuardian=new RagKnowledgeGuardian(db);
 const agentExperience=new RagAgentExperience(db);
+const agentCoordinator=createRagAgentCoordinator(db);
 const memory=new ConversationMemory(db);
 const chatContext=new ChatContext(db);
 const cloud=new CloudRu();
@@ -167,6 +169,10 @@ app.get('/api/system/backups/restore-check',async(req,reply)=>{try{return checkR
 app.get('/api/system/backups',async(req,reply)=>{try{return {items:inspectBackups({limit:Number(req.query?.limit??10)})};}catch(e){reply.code(400);return {error:e.message};}});
 app.post('/api/rag/agents/experience',async(req,reply)=>{try{const result=agentExperience.propose(req.body??{});reply.code(201);return result;}catch(e){reply.code(400);return {error:e.message};}});
 app.post('/api/rag/agents/experience/review',async(req,reply)=>{try{return agentExperience.review(req.body??{});}catch(e){reply.code(400);return {error:e.message};}});
+app.get('/api/rag/agents/coordinator/status',async()=>({roles:agentCoordinator.roles,...agentCoordinator.status()}));
+app.get('/api/rag/agents/coordinator/audit',async(req,reply)=>{try{return agentCoordinator.auditPending({limit:Number(req.query?.limit??30)});}catch(e){reply.code(400);return {error:e.message};}});
+app.post('/api/rag/agents/coordinator/audit',async()=>agentCoordinator.enqueueAudit());
+app.post('/api/rag/agents/coordinator/lessons',async(req,reply)=>{try{const result=agentCoordinator.submitLesson(req.body??{});reply.code(201);return result;}catch(e){reply.code(400);return {error:e.message};}});
 app.get('/api/rag/agents/experience/reviews',async(req,reply)=>{try{return {items:agentExperience.reviewHistory({limit:Number(req.query?.limit??30)})};}catch(e){reply.code(400);return {error:e.message};}});
 app.get('/api/rag/agents/experience/pending',async(req,reply)=>{try{return {items:agentExperience.pending({limit:Number(req.query?.limit??30)})};}catch(e){reply.code(400);return {error:e.message};}});
 app.get('/api/rag/agents/experience',async(req,reply)=>{try{return {items:agentExperience.share({taskKey:req.query?.taskKey,limit:Number(req.query?.limit??10)})};}catch(e){reply.code(400);return {error:e.message};}});
@@ -248,6 +254,6 @@ app.get('/ws',{websocket:true},(socket)=>{
 const port=Number(process.env.TSUKAMIYORA_PORT||4177);
 if(!Number.isInteger(port)||port<1||port>65535)throw Error('Invalid port');
 let stopping=false;
-async function stop(){if(stopping)return;stopping=true;try{autoIndex.stop();guardianScheduler.stop();tasks.close();await app.close();db.close();}catch(e){log(String(e));process.exitCode=1;}}
+async function stop(){if(stopping)return;stopping=true;try{autoIndex.stop();guardianScheduler.stop();agentCoordinator.stop();tasks.close();await app.close();db.close();}catch(e){log(String(e));process.exitCode=1;}}
 process.on('SIGINT',stop);process.on('SIGTERM',stop);
 try{await app.listen({host:'127.0.0.1',port});log('Listening on '+port);autoIndex.start();guardianScheduler.start();}catch(e){log(String(e));console.error(e);process.exitCode=1;await stop();}
