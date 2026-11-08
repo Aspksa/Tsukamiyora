@@ -73,3 +73,16 @@ test('pending lessons include current evidence flag and exclude approved entries
   assert.throws(()=>experience.pending({limit:101}),/Invalid pending limit/);
  }finally{db.close();}
 });
+
+test('stale agent proposals may be rejected but never approved',()=>{
+ const db=new DatabaseSync(':memory:');
+ try{
+  const index=new KnowledgeIndex(db),experience=new RagAgentExperience(db);
+  index.ingest({id:'file:guide',title:'Guide',text:'Initial evidence'});
+  const item=experience.propose({agentId:'agent',taskKey:'task',lesson:'Old conclusion',sourceId:'file:guide'});
+  index.removeSource('file:guide');
+  assert.deepEqual(experience.review({id:item.id,approved:true}),{updated:false});
+  assert.deepEqual(experience.review({id:item.id,approved:false}),{updated:true});
+  assert.deepEqual(experience.pending(),[]);
+ }finally{db.close();}
+});
