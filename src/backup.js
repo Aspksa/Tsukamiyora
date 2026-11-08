@@ -19,7 +19,8 @@ export async function backupDatabase({root=process.cwd(),retention=10}={}){
   finally { check.close(); }
   renameSync(tmp,target);
  } catch(e) { if(existsSync(tmp))unlinkSync(tmp); throw e; }
- const files=readdirSync(folder).filter(n=>/^tsukamiyora-.*\.sqlite$/.test(n)).sort().reverse();
+ const files=readdirSync(folder).filter(n=>/^tsukamiyora-\d{4}-\d{2}-\d{2}T\d{2}-\d{2}-\d{2}-\d{3}Z(?:-[0-9a-f]{8})?\.sqlite$/.test(n)).sort().reverse();
+ // Retain only snapshots produced by this application; do not delete unrelated files.
  for(const old of files.slice(retention)) unlinkSync(join(folder,old));
  return target;
 }
