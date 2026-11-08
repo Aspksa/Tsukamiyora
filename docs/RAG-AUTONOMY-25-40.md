@@ -59,3 +59,9 @@ Aggregate counters now persist in `data/cloudru-usage.json` via temporary-file r
 ## Read-only operational diagnostics
 
 `GET /api/rag/agents/coordinator/diagnostics` evaluates the latest 100 local agent events, the bounded queue state and current-session Cloud.ru usage. Default alerts: at least 3 failed agent events, more than 20 pending jobs, at least 5 Cloud.ru failures, or average successful Cloud.ru request latency over 15 seconds. These are heuristic thresholds, not a verified SLA. No knowledge changes, automatic tuning or remote requests are triggered by diagnostics. Retrieval-quality regression monitoring and budget enforcement remain future work.
+
+## Advisory budgets and retrieval regression
+
+`GET /api/cloud/budget?maxRequests=1000&maxTokens=1000000` reports advisory limits against cumulative locally recorded requests and reported tokens. Defaults are examples, not billing limits. Unreported streaming tokens make the token count a lower bound; there is no price or spend estimate, and requests are not blocked.
+
+`POST /api/rag/evaluate/baseline` accepts a reviewed benchmark summary once, `GET /api/rag/evaluate/baseline` reads it, and `POST /api/rag/evaluate/regression` compares candidate metrics with the saved baseline. This does not change the active retrieval algorithm. Benchmarks must use the same evaluation set and limit; automatic dataset identity verification and periodic execution are not implemented yet.
