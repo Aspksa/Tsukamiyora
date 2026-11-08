@@ -56,7 +56,7 @@ export class RagPipeline {
  }
  verifyCitation(citation){
   if(!citation||typeof citation.chunkId!=='string'||typeof citation.sourceId!=='string')return false;
-  const row=this.index.db.prepare('SELECT 1 FROM rag_chunks WHERE id=? AND source_id=?').get(citation.chunkId,citation.sourceId);
+  const row=this.index.db.prepare('SELECT 1 FROM rag_chunks c JOIN rag_sources s ON s.id=c.source_id WHERE c.id=? AND c.source_id=?').get(citation.chunkId,citation.sourceId);
   return Boolean(row);
  }
  context(query,{limit=5,maxChars=4000}={}){
