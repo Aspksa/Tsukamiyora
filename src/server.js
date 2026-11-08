@@ -40,6 +40,7 @@ import { createAgentTrainingScheduler } from './agent-training-scheduler.js';
 import { buildAgentDevelopmentPlan, summarizeAgentDevelopment } from './agent-development.js';
 import { createAgentTaskEngine } from './agent-task-engine.js';
 import { createAgentJobScheduler } from './agent-job-scheduler.js';
+import { planAgentTask, submitPlannedAgentTask } from './agent-task-router.js';
 import { diagnoseAgents } from './rag-agent-diagnostics.js';
 import { assessCloudBudget } from './cloud-budget.js';
 import { createRagQualityMonitor } from './rag-quality-monitor.js';
@@ -202,6 +203,8 @@ app.post('/api/rag/agents/experience',async(req,reply)=>{try{const result=agentE
 app.post('/api/rag/agents/experience/review',async(req,reply)=>{try{return agentExperience.review(req.body??{});}catch(e){reply.code(400);return {error:e.message};}});
 app.get('/api/rag/agents/coordinator/diagnostics',async()=>diagnoseAgents({activity:agentCoordinator.activity({limit:100}),queue:agentCoordinator.status().queue,cloud:cloud.usageMetrics()}));
 app.get('/api/rag/agents/coordinator/activity',async(req,reply)=>{try{return {items:agentCoordinator.activity({limit:Number(req.query?.limit??30)})};}catch(e){reply.code(400);return {error:e.message};}});
+app.post('/api/rag/agents/tasks/plan',async(req,reply)=>{try{return planAgentTask(req.body?.text,{allowedActions:agentTasks.status().allowedActions});}catch(e){reply.code(400);return {error:e.message};}});
+app.post('/api/rag/agents/tasks/dispatch',async(req,reply)=>{try{return submitPlannedAgentTask(agentTasks,req.body?.text);}catch(e){reply.code(400);return {error:e.message};}});
 app.get('/api/rag/agents/tasks/status',async()=>({...agentTasks.status(),scheduler:agentJobScheduler.status()}));
 app.get('/api/rag/agents/tasks',async(req,reply)=>{try{return {items:agentTasks.list({limit:Number(req.query?.limit??30)})};}catch(e){reply.code(400);return {error:e.message};}});
 app.post('/api/rag/agents/tasks',async(req,reply)=>{try{reply.code(201);return agentTasks.submit(req.body??{});}catch(e){reply.code(400);return {error:e.message};}});
