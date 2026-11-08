@@ -15,6 +15,7 @@ test('cloud indexing requires per-file consent and revocation removes vectors',a
   const cloud={async request(){calls++;return {data:[{embedding:[1,0]}]};}};
   const neural=new NeuralRag(db,cloud,{model:'embed-test'});
   assert.equal((await neural.sync()).indexed,0);
+  assert.deepEqual(await neural.search('private query'),[]);
   assert.equal(calls,0);
   assert.equal(permissions.list()[0].allowed,false);
   permissions.set({sourceId:'file:manual',allowed:true});
@@ -24,6 +25,7 @@ test('cloud indexing requires per-file consent and revocation removes vectors',a
   assert.equal((await neural.sync()).indexed,0);
   assert.equal(neural.metrics().stored,0);
   assert.deepEqual(await neural.search('двигателя'),[]);
+  assert.equal(calls,1);
   assert.throws(()=>permissions.set({sourceId:'chat:secret',allowed:true}),/Invalid/);
  }finally{db.close();}
 });
