@@ -9,7 +9,9 @@ export function indexDirectory(db,folder,{maxFiles=2000,maxBytes=1024*1024}={}){
  const rag=new KnowledgeIndex(db),pending=[root],seen=new Set();let scanned=0,changed=0,skipped=0,removed=0,truncated=false;
  while(pending.length&&scanned<maxFiles){
   const dir=pending.pop();
-  for(const entry of readdirSync(dir,{withFileTypes:true})){
+  let entries;
+  try{entries=readdirSync(dir,{withFileTypes:true});}catch{skipped++;continue;}
+  for(const entry of entries){
    if(scanned>=maxFiles){truncated=true;break;}
    if(entry.isSymbolicLink()||entry.name.startsWith('.'))continue;
    const path=join(dir,entry.name);
@@ -21,8 +23,8 @@ export function indexDirectory(db,folder,{maxFiles=2000,maxBytes=1024*1024}={}){
     const actual=realpathSync(path);if(!actual.startsWith(root+sep)){skipped++;continue;}
     const rel=relative(root,path).replaceAll('\\','/');
     const id='file:'+createHash('sha256').update(root+'\0'+rel).digest('hex');
-    seen.add(id);
     const result=rag.ingest({id,title:rel,text:readFileSync(path,'utf8')});
+    seen.add(id);
     if(result.changed)changed++;
    }catch{skipped++;}
   }
