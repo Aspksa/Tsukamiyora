@@ -66,3 +66,15 @@ test('graph evidence survives when lexical results fill the result limit',()=>{
   assert.ok(result.results.every(hit=>hit.citation?.chunkId===hit.id));
  }finally{db.close();}
 });
+
+test('graph citation accepts flexible spacing in explicit relations',()=>{
+ const db=new DatabaseSync(':memory:');
+ try{
+  const index=new KnowledgeIndex(db),relations=new RagRelationGraph(db);
+  index.ingest({id:'file:spaced',title:'Spaced',text:'Двигатель->  использует  ->Масло'});
+  relations.extract({sourceId:'file:spaced'});
+  const result=new GraphAwareRag(index).retrieve('Двигатель',{limit:5});
+  assert.equal(result.graph.edges.length,1);
+  assert.ok(result.results.some(hit=>hit.graphEvidence&&hit.source_id==='file:spaced'));
+ }finally{db.close();}
+});
