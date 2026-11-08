@@ -1,3 +1,4 @@
+import {scoreEvidenceGroup} from './rag-confidence.js';
 // Local, read-only fact review: provenance, conflicts, staleness and temporal evidence.
 export class RagFactReview {
  constructor(db){this.db=db;}
@@ -24,9 +25,9 @@ export class RagFactReview {
   return [...grouped.values()].slice(0,limit).map(group=>{
    const alternatives=[...group.alternatives.values()].map(a=>({value:a.value,sourceCount:a.sources.size,sourceIds:[...a.sources],citations:a.citations,needsReview:a.needsReview}));
    const conflicting=alternatives.length>1;
-   return {subject:group.subject,predicate:group.predicate,alternatives,conflicting,
+   return scoreEvidenceGroup({subject:group.subject,predicate:group.predicate,alternatives,conflicting,
     confidence:'unverified',resolution:'manual-review-required',
-    note:'Multiple sources are not assumed independent; no facts were overwritten'};
+    note:'Multiple sources are not assumed independent; no facts were overwritten'});
   });
  }
 }
