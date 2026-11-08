@@ -1,6 +1,7 @@
 import { DatabaseSync } from 'node:sqlite';
 import { existsSync, copyFileSync, mkdirSync, renameSync, unlinkSync, realpathSync } from 'node:fs';
-import { join, resolve, relative, isAbsolute, basename } from 'node:path';
+import { join, resolve, relative, isAbsolute } from 'node:path';
+import { pathToFileURL } from 'node:url';
 
 export function restoreDatabase(backupPath,{root=process.cwd()}={}) {
  const folder=resolve(root,'data','backups');
@@ -29,7 +30,7 @@ export function restoreDatabase(backupPath,{root=process.cwd()}={}) {
  return dest;
 }
 function requireSeparator(){return process.platform==='win32'?'\\':'/';}
-if(process.argv[1]&&resolve(process.argv[1])===new URL(import.meta.url).pathname.replace(/^\/(?=[A-Za-z]:)/,'')){
+if(process.argv[1]&&pathToFileURL(resolve(process.argv[1])).href===import.meta.url){
  try{if(!process.argv[2])throw Error('Usage: node scripts/restore.js <backup.sqlite> (stop app first)');console.log('Restored to '+restoreDatabase(process.argv[2]));}
  catch(error){console.error(error.message);process.exitCode=1;}
 }
