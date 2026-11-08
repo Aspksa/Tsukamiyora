@@ -34,19 +34,20 @@ jobs:
       - name: API integration smoke test
         shell: pwsh
         run: |
+          $env:TSUKAMIYORA_PORT = '4198'
           $p = Start-Process node -ArgumentList 'src/server.js' -PassThru -WorkingDirectory (Get-Location).Path -NoNewWindow
           try {
             $ready = $false
             for ($i=0; $i -lt 30; $i++) {
               Start-Sleep -Milliseconds 500
-              try { $health = Invoke-RestMethod 'http://127.0.0.1:4177/health' -TimeoutSec 1; if ($health.status -eq 'ok') { $ready=$true; break } } catch {}
+              try { $health = Invoke-RestMethod 'http://127.0.0.1:4198/health' -TimeoutSec 1; if ($health.status -eq 'ok') { $ready=$true; break } } catch {}
             }
             if (-not $ready) { throw 'Server health timeout' }
-            $job = Invoke-RestMethod 'http://127.0.0.1:4177/api/tasks' -Method Post -ContentType 'application/json' -Body '{"kind":"sum","payload":[2,3,5]}'
+            $job = Invoke-RestMethod 'http://127.0.0.1:4198/api/tasks' -Method Post -ContentType 'application/json' -Body '{"kind":"sum","payload":[2,3,5]}'
             $done = $false
             for ($i=0; $i -lt 30; $i++) {
               Start-Sleep -Milliseconds 200
-              $result = Invoke-RestMethod "http://127.0.0.1:4177/api/tasks/$($job.id)"
+              $result = Invoke-RestMethod "http://127.0.0.1:4198/api/tasks/$($job.id)"
               if ($result.status -eq 'done') { if ($result.result -ne 10) { throw 'Incorrect task result' }; $done=$true; break }
             }
             if (-not $done) { throw 'Worker timeout' }
@@ -56,6 +57,7 @@ jobs:
         if: runner.os == 'Windows'
         shell: pwsh
         run: |
+          $env:CI = 'true'
           $env:TSUKAMIYORA_PORT = '4199'
           try {
             & cmd.exe /c 'Tsukamiyora.bat'
