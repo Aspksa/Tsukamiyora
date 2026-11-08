@@ -41,7 +41,7 @@ export function indexDirectory(db,folder,{maxFiles=2000,maxBytes=1024*1024}={}){
   }
  }
  // Never delete tracked sources after an incomplete or capped scan.
- if(pending.length===0&&skipped===0&&!truncated){
+ if(pending.length===0&&skipped===0&&!truncated&&scanned<maxFiles){
   db.exec('CREATE TABLE IF NOT EXISTS rag_file_roots(root TEXT NOT NULL, source_id TEXT NOT NULL, PRIMARY KEY(root,source_id))');
   const old=db.prepare('SELECT source_id FROM rag_file_roots WHERE root=?').all(root);
   for(const row of old){if(!seen.has(row.source_id)){if(rag.removeSource(row.source_id))removed++;db.prepare('DELETE FROM rag_file_roots WHERE root=? AND source_id=?').run(root,row.source_id);}}
@@ -53,5 +53,5 @@ export function indexDirectory(db,folder,{maxFiles=2000,maxBytes=1024*1024}={}){
   for(const id of seen)track.run(root,id);
  }
  return {scanned,changed,skipped,removed,remainingDirectories:pending.length,
-  complete:pending.length===0&&skipped===0&&!truncated};
+  complete:pending.length===0&&skipped===0&&!truncated&&scanned<maxFiles};
 }
